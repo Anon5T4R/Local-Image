@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Local Image
+Exec=local-image
+Icon=local-image
+Categories=Graphics;
+Comment=Visualizador de imagens 100% local e offline — export sem EXIF
+Terminal=false
+StartupWMClass=local-image

@@ -1,0 +1,29 @@
+[package]
+name = "local-image"
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0-or-later"
+publish = false
+repository = "https://github.com/Anon5T4R/Local-Image"
+description = "Visualizador de imagens 100% local e offline — export sempre re-encodado (EXIF nunca sobrevive)"
+
+[build-dependencies]
+# Embute o ícone no .exe (Windows) — sem isso o Explorer mostra ícone genérico.
+winresource = "0.1"
+
+[dependencies]
+eframe = "0.31"
+egui = "0.31"
+lab-ui = { path = "lab-ui" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# Decode (→ textura egui) + ícone da janela (include_bytes + decode)
+image = "0.25"
+# EXIF só-leitura do painel de metadados (o export NUNCA copia EXIF)
+kamadak-exif = "0.6"
+
+[profile.release]
+opt-level = 3
+lto = true
+strip = true
+panic = "abort"
