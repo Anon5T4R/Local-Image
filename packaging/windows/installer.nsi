@@ -1,7 +1,7 @@
 !include "MUI2.nsh"
 
 Name "Local Image"
-OutFile "local-image-setup.exe"
+OutFile "..\..\local-image-setup.exe"
 InstallDir "$PROGRAMFILES64\Local Image"
 RequestExecutionLevel admin
 
@@ -21,7 +21,7 @@ RequestExecutionLevel admin
 
 Section "Install"
   SetOutPath "$INSTDIR"
-  File "target\release\local-image.exe"
+  File "..\..\target\release\local-image.exe"
 
   ; Atalhos no contexto do USUÁRIO (não do admin elevado).
   SetShellVarContext current
