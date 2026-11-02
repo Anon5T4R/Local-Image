@@ -71,6 +71,11 @@
           <Shortcut Id="StartMenuShortcut" Directory="ProgramMenuFolder" Name="Local Image"
               Description="LocalImage image viewer" WorkingDirectory="INSTALLFOLDER" Advertise="yes"
               Icon="LocalImageIcon.ico" IconIndex="0" />
+          <!-- Atalho no desktop (o NSIS antigo criava; per-machine = desktop
+               comum, visível pra todos os usuários). -->
+          <Shortcut Id="DesktopShortcut" Directory="DesktopFolder" Name="Local Image"
+              Description="LocalImage image viewer" WorkingDirectory="INSTALLFOLDER" Advertise="yes"
+              Icon="LocalImageIcon.ico" IconIndex="0" />
         </File>
 
         <RegistryValue Root="HKMU" Key="Software\Microsoft\Windows\CurrentVersion\App Paths\local-image.exe" Value="[#LocalImageExe]" Type="string" />
