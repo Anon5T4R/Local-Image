@@ -51,6 +51,7 @@ jobs:
           set -euo pipefail
           export APPIMAGE_EXTRACT_AND_RUN=1
           mkdir -p out
+          version=$(grep '^version =' Cargo.toml | head -1 | sed 's/.*= "\([^"]*\)".*/\1/')
           appdir="AppDir-local-image"
           mkdir -p "$appdir/usr/bin"
           cp "target/release/local-image" "$appdir/usr/bin/"
