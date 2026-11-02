@@ -129,5 +129,7 @@ jobs:
           gh release create "${GITHUB_REF_NAME}" \
             --repo "$GITHUB_REPOSITORY" \
             --title "Local Image ${GITHUB_REF_NAME}" \
-            --notes "Visualizador de imagens 100% local e offline — export sempre re-encodado (EXIF nunca sobrevive)." \
+            --notes "Visualizador de imagens 100% local e offline - export sempre re-encodado (EXIF nunca sobrevive)." \
+            dist/windows/* dist/linux/* \
+          || gh release upload "${GITHUB_REF_NAME}" --repo "$GITHUB_REPOSITORY" --clobber \
             dist/windows/* dist/linux/*
