@@ -24,6 +24,7 @@ use lab_ui::workarea::fit_to_work_area;
 use ui::{begin_dialog, ghost, line, modal_frame, pill};
 
 const APP_ID: &str = "local-image";
+const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Ícone da janela (além do .exe cunhado no build.rs — Windows pega os
 /// dois; AppImage/desktop só vendo com o PNG do pacote).
@@ -37,6 +38,13 @@ fn load_icon() -> Option<egui::IconData> {
 }
 
 fn main() -> eframe::Result<()> {
+    // Windows: o helper de update é uma CÓPIA deste programa iniciada com
+    // `--finish-update` (craft_update). Roda ANTES de tudo.
+    #[cfg(windows)]
+    if let Some(result) = craft_update::self_update::finish(&craft_update::suite::LOCALIMAGE, &std::env::args_os().skip(1).collect::<Vec<_>>()) {
+        std::process::exit(i32::from(result.is_err()));
+    }
+
     let cfg = config::load(APP_ID);
 
     // "Abrir com" do Windows manda o caminho como primeiro arg.
@@ -60,9 +68,37 @@ fn main() -> eframe::Result<()> {
         Box::new(move |cc| {
             theme::apply(&cc.egui_ctx, cfg.theme);
             let opened_with_file = initial_file.is_some();
-            Ok(Box::new(ImageApp::new(cfg, initial_file, opened_with_file)))
+            let mut app = ImageApp::new(cfg, initial_file, opened_with_file);
+            // Check de update no arranque: achou release nova, o prompt do
+            // updater abre sozinho (craft_update::dialog).
+            app.updater.check_at_start(&cc.egui_ctx);
+            Ok(Box::new(app))
         }),
     )
+}
+
+/// Abre a página da release no navegador — ação "Download" do prompt do
+/// updater, para instalações que não se auto-atualizam (zip solto, dev build).
+fn open_url(url: &str) {
+    #[cfg(windows)]
+    {
+        use windows::core::{HSTRING, PCWSTR};
+        use windows::Win32::UI::Shell::ShellExecuteW;
+        use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+        let verb = HSTRING::from("open");
+        let file = HSTRING::from(url);
+        // > 32 = lançou.
+        let res = unsafe { ShellExecuteW(None, PCWSTR(verb.as_ptr()), PCWSTR(file.as_ptr()), PCWSTR::null(), PCWSTR::null(), SW_SHOWNORMAL) };
+        if res.0 as usize <= 32 {
+            eprintln!("update: falha ao abrir {url} (código {})", res.0 as usize);
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        if std::process::Command::new("xdg-open").arg(url).spawn().is_err() {
+            eprintln!("update: falha ao abrir {url}");
+        }
+    }
 }
 
 /// Trabalho pesado fora da UI (thread de decode).
@@ -148,6 +184,9 @@ struct ImageApp {
     /// zoom final depende do `avail` da viewport JÁ em tela cheia, então
     /// fica pendente e é aplicado no painel central até a viewport assentar.
     fs_cover: bool,
+    /// Verificação e instalação de atualização (craft_update): check no
+    /// arranque/pedido, prompt egui próprio e self-update em thread própria.
+    updater: craft_update::updater::Updater,
 }
 
 impl ImageApp {
@@ -173,7 +212,15 @@ impl ImageApp {
             window_fix: initial_file.as_ref().and_then(|p| image::image_dimensions(p).ok()).map(|(w, h)| [w as f32, h as f32]),
             last_vp: None,
             fs_cover: false,
+            updater: craft_update::updater::Updater::new(&craft_update::suite::LOCALIMAGE, CURRENT_VERSION),
         }
+    }
+
+    /// Verifica atualizações agora (botão "Verificar atualizações"). O
+    /// resultado sai na barra de status do rodapé; release nova abre o
+    /// prompt do próprio updater.
+    fn check_updates(&mut self, ctx: &egui::Context) {
+        self.updater.check_now(ctx);
     }
 
     /// Enfileira um job nos canais genéricos (List / Exif / Export).
@@ -247,7 +294,24 @@ fn paint_rotated(painter: &egui::Painter, tex: egui::TextureId, dest: egui::Rect
 }
 
 impl eframe::App for ImageApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        let ctx = &ui.ctx().clone();
+
+        // Updater (craft_update): drena o check/instalação pendente (o tick
+        // acorda a UI por si). Resultado de um check PEDIDO sai na barra de
+        // status do rodapé; release nova abre o prompt do updater lá embaixo.
+        self.updater.tick(ctx);
+        match self.updater.status().clone() {
+            craft_update::updater::Status::UpToDate => {
+                self.status = i18n::t(self.cfg.lang, Key::UpToDate).to_string();
+                self.updater.dismiss_status();
+            }
+            craft_update::updater::Status::Failed(e) => {
+                self.status = format!("⚠ {e}");
+                self.updater.dismiss_status();
+            }
+            _ => {}
+        }
         // Se abriu com um arquivo via args, dispara o scan da pasta agora.
         if let Some(ref p) = self.initial_file {
             if self.dir.is_empty() {
@@ -268,7 +332,7 @@ impl eframe::App for ImageApp {
         // área já assentada (sem isso o app idle não repinta de novo).
         let mut vp_changed = false;
         let vp = ctx.input(|i| {
-            let r = i.viewport().inner_rect.unwrap_or(i.screen_rect);
+            let r = i.viewport().inner_rect.unwrap_or_else(|| i.raw.screen_rect.unwrap_or(egui::Rect::NOTHING));
             [r.width(), r.height()]
         });
         if self.last_vp.is_none() {
@@ -295,7 +359,7 @@ impl eframe::App for ImageApp {
 
         // Atalhos de LETRA só fora de campo de texto (o rodapé tem o
         // caminho da pasta: digitar "f" não pode disparar tela cheia).
-        let kb_free = !ctx.wants_keyboard_input();
+        let kb_free = !ctx.egui_wants_keyboard_input();
 
         // R = redimensiona a janela pra imagem ATUAL (abriu com uma,
         // navegou pras setas — a janela acompanha a nova). Dims já com a
@@ -464,12 +528,20 @@ impl eframe::App for ImageApp {
         // Interface: toolbar/rodapé só quando `chrome`.
         let chrome = self.chrome;
         if chrome {
-            egui::TopBottomPanel::top("topo").show(ctx, |ui| {
+            egui::containers::Panel::top("topo").show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.strong("Local Image");
                     let n = self.idx.map(|i| format!("{}/{}", i + 1, self.files.len())).unwrap_or_default();
                     ui.label(egui::RichText::new(n).small().weak());
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        let (cfg_changed, _) = lab_ui::settings_ui(ui, &mut self.cfg, false);
+                        if cfg_changed {
+                            theme::apply(ctx, self.cfg.theme);
+                            let _ = config::save(APP_ID, &self.cfg);
+                        }
+                        if ghost(ui, i18n::t(self.cfg.lang, Key::CheckUpdates)).clicked() {
+                            self.check_updates(ctx);
+                        }
                         if ghost(ui, "i").on_hover_text("EXIF").clicked() {
                             self.show_exif = !self.show_exif;
                         }
@@ -487,17 +559,13 @@ impl eframe::App for ImageApp {
                         if self.tex.is_some() && ghost(ui, "⊙").on_hover_text("centralizar (C)").clicked() {
                             self.center_pending = true;
                         }
-                        if lab_ui::settings_ui(ui, &mut self.cfg, false).0 {
-                            theme::apply(ctx, self.cfg.theme);
-                            let _ = config::save(APP_ID, &self.cfg);
-                        }
                     });
                 });
             });
         }
 
         if chrome {
-            egui::TopBottomPanel::bottom("rodape").show(ctx, |ui| {
+            egui::containers::Panel::bottom("rodape").show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.add(line(&mut self.dir).hint_text(r"C:\...\fotos").desired_width(f32::INFINITY));
                     if pill(ui, i18n::t(self.cfg.lang, Key::Open), true).clicked() {
@@ -513,7 +581,7 @@ impl eframe::App for ImageApp {
             });
         }
 
-        egui::CentralPanel::default().show(ctx, |ui| {
+        egui::CentralPanel::default().show(ui, |ui| {
             if self.files.is_empty() {
                 // Sem pasta e sem interface → clique mostra a toolbar
                 // (senão o usuário fica preso).
@@ -582,9 +650,9 @@ impl eframe::App for ImageApp {
                 // fit MATERIALIZA o offset de centralização como pan —
                 // antes o base_off era descartado e a imagem pulava pro
                 // canto no primeiro scroll.
-                let scroll = response.hovered() && ui.input(|i| i.raw_scroll_delta.y.abs() > 0.0);
+                let scroll = response.hovered() && ui.input(|i| i.smooth_scroll_delta.y.abs() > 0.0);
                 if scroll {
-                    let factor = if ui.input(|i| i.raw_scroll_delta.y > 0.0) { 1.1 } else { 1.0 / 1.1 };
+                    let factor = if ui.input(|i| i.smooth_scroll_delta.y > 0.0) { 1.1 } else { 1.0 / 1.1 };
                     let new_zoom = (self.zoom * factor).clamp(0.05, 40.0);
                     if let Some(m) = response.hover_pos() {
                         let m = m - rect.min; // cursor na área do viewer
@@ -627,7 +695,7 @@ impl eframe::App for ImageApp {
 
         if self.show_exif {
             egui::Window::new("EXIF")
-                .id(egui::Id::new("exif"))
+                .id(egui::Id::unique("exif"))
                 .frame(modal_frame(ctx))
                 .default_open(true)
                 .collapsible(true)
@@ -653,6 +721,16 @@ impl eframe::App for ImageApp {
                         }
                     }
                 });
+        }
+
+        // Prompt de update (craft_update): por cima de tudo. "Atualizar e
+        // reiniciar" pede o fechamento pelo caminho limpo (ViewportCommand::
+        // Close) — o helper do craft_update instala e relança depois que o
+        // app sai.
+        match self.updater.show(ctx) {
+            craft_update::updater::Action::None => {}
+            craft_update::updater::Action::OpenUrl(url) => open_url(&url),
+            craft_update::updater::Action::Close => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
         }
     }
 }

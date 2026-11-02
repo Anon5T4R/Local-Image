@@ -58,7 +58,7 @@ pub(crate) fn line(text: &mut dyn egui::TextBuffer) -> egui::TextEdit<'_> {
 
 /// Moldura do diálogo: cartão com canto de 10, borda sutil e a sombra do tema.
 pub(crate) fn modal_frame(ctx: &egui::Context) -> egui::Frame {
-    let style = ctx.style();
+    let style = ctx.style_of(ctx.theme());
     let skin = Skin::from_visuals(&style.visuals);
     egui::Frame::NONE
         .fill(skin.card)
@@ -112,7 +112,7 @@ fn pill_colored(ui: &mut egui::Ui, label: &str, fill: egui::Color32, ink: egui::
     let font = egui::TextStyle::Button.resolve(ui.style());
     let galley = ui.painter().layout_no_wrap(label.to_owned(), font, ink);
     let (rect, resp) = ui.allocate_exact_size(egui::vec2(galley.size().x + 28.0, 28.0), egui::Sense::click());
-    resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, enabled, label));
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, enabled, label));
     let hovered = resp.hovered() && enabled;
     let fill = if !enabled {
         fill.gamma_multiply(0.45)
@@ -148,7 +148,7 @@ fn ghost_ink(ui: &mut egui::Ui, label: &str, ink: egui::Color32) -> egui::Respon
     let font = egui::TextStyle::Button.resolve(ui.style());
     let galley = ui.painter().layout_no_wrap(label.to_owned(), font, ink);
     let (rect, resp) = ui.allocate_exact_size(egui::vec2(galley.size().x + 14.0, 24.0), egui::Sense::click());
-    resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), label));
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), label));
     if resp.hovered() {
         ui.painter().rect_filled(rect, egui::CornerRadius::same(6), skin.hover);
     }
