@@ -5,7 +5,7 @@ OutFile "..\..\local-image-setup.exe"
 InstallDir "$PROGRAMFILES64\Local Image"
 RequestExecutionLevel admin
 
-!define VERSION "0.2.1"
+!define VERSION "0.2.2"
 
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_DIRECTORY

@@ -2,7 +2,7 @@
 # moldura de foto polaroid com sol e montanhas) e gera icon.ico + icons/icon.png.
 Add-Type -AssemblyName System.Drawing
 
-$root = "C:\Dev\storytold\apps\local-image"
+$root = "C:\Dev\underworld-apps\local-image"
 $size = 1024
 
 function New-Canvas([int]$s) {
@@ -35,20 +35,9 @@ $grad = New-Object System.Drawing.Drawing2D.LinearGradientBrush($rect, `
     [System.Drawing.Color]::FromArgb(255, 92, 140, 235), 60)
 $g.FillPath($grad, $sq)
 
-# sombra da moldura (translucida, navy - flat moderno)
-$shadow = New-Object System.Drawing.Drawing2D.GraphicsPath
+# moldura polaroid branca (flat: sem sombra, mesma linguagem do resto da suite)
 $fx = $size * 0.235; $fy = $size * 0.225; $fw = $size * 0.53; $fh = $size * 0.55
 $fr = $size * 0.045
-$shadow.AddArc($fx + 6, $fy + 8, $fr, $fr, 180, 90)
-$shadow.AddArc($fx + $fw - $fr + 6, $fy + 8, $fr, $fr, 270, 90)
-$shadow.AddArc($fx + $fw - $fr + 6, $fy + $fh - $fr + 8, $fr, $fr, 0, 90)
-$shadow.AddArc($fx + 6, $fy + $fh - $fr + 8, $fr, $fr, 90, 90)
-$shadow.CloseFigure()
-$alphaBlack = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(70, 12, 20, 40))
-$g.FillPath($alphaBlack, $shadow)
-$shadow.Dispose()
-
-# moldura polaroid branca
 $frame = New-Object System.Drawing.Drawing2D.GraphicsPath
 $frame.AddArc($fx, $fy, $fr, $fr, 180, 90)
 $frame.AddArc($fx + $fw - $fr, $fy, $fr, $fr, 270, 90)
@@ -90,6 +79,14 @@ $mnt2.AddPolygon([System.Drawing.PointF[]]@(
     (New-Object System.Drawing.PointF(($px + $pw * 0.98), $base))
 ))
 $g.FillPath((New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(255, 58, 92, 165))), $mnt2)
+
+# assinatura da marca (estilo da suite: Segoe Script, branco ~55%, no pe do tile)
+$sigFont = New-Object System.Drawing.Font('Segoe Script', [float]($size * 0.082), [System.Drawing.FontStyle]::Regular, [System.Drawing.GraphicsUnit]::Pixel)
+$sigBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(140, 255, 255, 255))
+$sigFormat = New-Object System.Drawing.StringFormat
+$sigFormat.Alignment = [System.Drawing.StringAlignment]::Center
+$g.DrawString('Taylor', $sigFont, $sigBrush, [float]($size / 2), [float]($size * 0.845), $sigFormat)
+$sigFont.Dispose(); $sigBrush.Dispose(); $sigFormat.Dispose()
 
 $g.Dispose()
 
