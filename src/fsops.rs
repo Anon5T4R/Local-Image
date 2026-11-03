@@ -161,8 +161,7 @@ pub fn delete_to_trash(path: &Path) -> Result<(), FsError> {
         use std::os::windows::ffi::OsStrExt;
         use windows::core::PCWSTR;
         use windows::Win32::UI::Shell::{
-            SHFileOperationW, SHFILEOPSTRUCTW, FO_DELETE, FOF_ALLOWUNDO, FOF_NOCONFIRMATION, FOF_NOERRORUI, FOF_SILENT,
-            FOF_WANTNUKEWARNING,
+            SHFileOperationW, FOF_ALLOWUNDO, FOF_NOCONFIRMATION, FOF_NOERRORUI, FOF_SILENT, FOF_WANTNUKEWARNING, FO_DELETE, SHFILEOPSTRUCTW,
         };
         // `pFrom` é uma LISTA de paths double-null-terminated: o primeiro 0
         // fecha o path, o segundo fecha a lista. Sem o segundo a API segue

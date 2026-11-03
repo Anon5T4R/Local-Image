@@ -223,10 +223,7 @@ mod tests {
     #[test]
     fn ancestrais_vao_do_raiz_ate_a_pasta() {
         // Relativo: vale em qualquer SO (o CI também roda Linux).
-        assert_eq!(
-            ancestors(Path::new("a/b/c")),
-            vec![PathBuf::from("a"), PathBuf::from("a/b"), PathBuf::from("a/b/c")]
-        );
+        assert_eq!(ancestors(Path::new("a/b/c")), vec![PathBuf::from("a"), PathBuf::from("a/b"), PathBuf::from("a/b/c")]);
         // Um componente só: o próprio (nada de path vazio na frente).
         assert_eq!(ancestors(Path::new("fotos")), vec![PathBuf::from("fotos")]);
     }
@@ -237,12 +234,7 @@ mod tests {
         // A raiz `C:\` não tem `file_name`: o breadcrumb mostra o path dela.
         assert_eq!(
             ancestors(Path::new(r"C:\Users\joao\fotos")),
-            vec![
-                PathBuf::from(r"C:\"),
-                PathBuf::from(r"C:\Users"),
-                PathBuf::from(r"C:\Users\joao"),
-                PathBuf::from(r"C:\Users\joao\fotos"),
-            ]
+            vec![PathBuf::from(r"C:\"), PathBuf::from(r"C:\Users"), PathBuf::from(r"C:\Users\joao"), PathBuf::from(r"C:\Users\joao\fotos"),]
         );
     }
 

@@ -65,7 +65,6 @@ const VIDEO_TAG_SIZE: f32 = 12.0;
 /// Tamanho do spinner de "miniatura decodificando" dentro do tile.
 const SPINNER_SIZE: f32 = 18.0;
 
-
 /// Ícone da janela (além do .exe cunhado no build.rs — Windows pega os
 /// dois; AppImage/desktop só vendo com o PNG do pacote).
 const ICON_PNG: &[u8] = include_bytes!("../icons/icon.png");
@@ -143,11 +142,7 @@ fn shell_open(target: &str) -> Result<(), String> {
     }
     #[cfg(not(windows))]
     {
-        std::process::Command::new("xdg-open")
-            .arg(target)
-            .spawn()
-            .map(|_| ())
-            .map_err(|e| format!("xdg-open {target}: {e}"))
+        std::process::Command::new("xdg-open").arg(target).spawn().map(|_| ()).map_err(|e| format!("xdg-open {target}: {e}"))
     }
 }
 
@@ -169,11 +164,7 @@ fn open_path(path: &Path) -> Result<(), String> {
 /// que é o mesmo caminho do "Abrir com" (o app já nasce abrindo o argv[1]).
 fn open_in_new_window(path: &Path) -> Result<(), String> {
     let exe = std::env::current_exe().map_err(|e| format!("localizar o executável: {e}"))?;
-    std::process::Command::new(exe)
-        .arg(path)
-        .spawn()
-        .map(|_| ())
-        .map_err(|e| format!("abrir nova janela: {e}"))
+    std::process::Command::new(exe).arg(path).spawn().map(|_| ()).map_err(|e| format!("abrir nova janela: {e}"))
 }
 
 /// Janela em que o app está. A galeria é a HOME (boot sem arquivo); o viewer é
@@ -191,13 +182,17 @@ enum Mode {
 enum Dialog {
     None,
     /// Nome novo do único arquivo selecionado.
-    Rename { field: String },
+    Rename {
+        field: String,
+    },
     /// Escolha da pasta de destino da seleção (subpastas + o pai).
     MoveTo,
     /// Confirmação da exclusão — que vai pra LIXEIRA, nunca pra definitiva.
     ConfirmDelete,
     /// Nome da pasta nova dentro da pasta corrente.
-    NewFolder { field: String },
+    NewFolder {
+        field: String,
+    },
 }
 
 /// Ação pedida pela linha de botões da galeria. Aplicada depois do desenho
@@ -234,12 +229,18 @@ enum Job {
 
 enum Done {
     List(Result<img::DirListing, String>),
-    Decode { path: PathBuf, result: Result<(egui::ColorImage, Option<img::ImageInfo>), String> },
+    Decode {
+        path: PathBuf,
+        result: Result<(egui::ColorImage, Option<img::ImageInfo>), String>,
+    },
     Exif(Vec<(String, String)>),
     Export(Result<PathBuf, String>),
     /// `image: None` = falhou (arquivo corrompido, formato sem decoder). Não
     /// é fatal: o tile cai no fallback (card + nome) em vez de pedir de novo.
-    Thumb { path: PathBuf, image: Option<egui::ColorImage> },
+    Thumb {
+        path: PathBuf,
+        image: Option<egui::ColorImage>,
+    },
 }
 
 fn spawn_job(job: Job, tx: Sender<Done>) {
@@ -1020,11 +1021,8 @@ impl ImageApp {
             ui.strong("Local Image");
             // Com List no ar a contagem é a da listagem VELHA — "working…"
             // em vez de um "0 items" enganoso.
-            let count = if self.rx.is_some() {
-                i18n::t(self.cfg.lang, Key::Working).to_string()
-            } else {
-                i18n::t_items(self.cfg.lang, visible.len())
-            };
+            let count =
+                if self.rx.is_some() { i18n::t(self.cfg.lang, Key::Working).to_string() } else { i18n::t_items(self.cfg.lang, visible.len()) };
             ui.label(egui::RichText::new(count).small().weak());
             // Direita→esquerda: configurações e o check de update, os mesmos
             // controles da toolbar do viewer.
@@ -1083,7 +1081,12 @@ impl ImageApp {
                 // O layout da direita pra esquerda ocupa o que sobrou da linha
                 // e encosta o campo na borda (mesmo truque do rodapé).
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.add(line(&mut self.search).hint_text(i18n::t(self.cfg.lang, Key::Search)).align(egui::Align2::LEFT_CENTER).desired_width(SEARCH_W));
+                    ui.add(
+                        line(&mut self.search)
+                            .hint_text(i18n::t(self.cfg.lang, Key::Search))
+                            .align(egui::Align2::LEFT_CENTER)
+                            .desired_width(SEARCH_W),
+                    );
                 });
             }
         });
@@ -1329,7 +1332,13 @@ impl ImageApp {
         if img::is_video(path) {
             // Sem ffmpeg não há frame do vídeo: o cartão fica com a tag e o
             // nome embaixo — o duplo-clique manda pro player do sistema.
-            painter.text(card.center(), egui::Align2::CENTER_CENTER, i18n::t(self.cfg.lang, Key::VideoTile), egui::FontId::proportional(VIDEO_TAG_SIZE), skin.muted);
+            painter.text(
+                card.center(),
+                egui::Align2::CENTER_CENTER,
+                i18n::t(self.cfg.lang, Key::VideoTile),
+                egui::FontId::proportional(VIDEO_TAG_SIZE),
+                skin.muted,
+            );
         } else if let Some(tex) = self.thumbs.get(path) {
             // "Contain": a miniatura cabe sem esticar (o decode limitou o lado
             // maior, mas o cartão não tem a mesma proporção da foto).
@@ -1726,10 +1735,7 @@ impl eframe::App for ImageApp {
                         }
                         // Modo galeria: entra e re-lista a pasta corrente (a
                         // pill fica sempre no chrome, ao lado do export).
-                        if pill(ui, i18n::t(self.cfg.lang, Key::Gallery), false)
-                            .on_hover_text(i18n::t(self.cfg.lang, Key::GalleryHint))
-                            .clicked()
-                        {
+                        if pill(ui, i18n::t(self.cfg.lang, Key::Gallery), false).on_hover_text(i18n::t(self.cfg.lang, Key::GalleryHint)).clicked() {
                             self.enter_gallery(ctx);
                         }
                     });
@@ -1751,12 +1757,8 @@ impl eframe::App for ImageApp {
                         // `align`: o campo vive num layout da direita pra
                         // esquerda, mas caminho é conteúdo LTR — sem isso o
                         // texto digitado encostava à direita.
-                        let resp = ui.add(
-                            line(&mut self.dir)
-                                .hint_text(r"C:\...\fotos")
-                                .align(egui::Align2::LEFT_CENTER)
-                                .desired_width(f32::INFINITY),
-                        );
+                        let resp =
+                            ui.add(line(&mut self.dir).hint_text(r"C:\...\fotos").align(egui::Align2::LEFT_CENTER).desired_width(f32::INFINITY));
                         // Enter abre a pasta: o TextEdit singleline perde o
                         // foco no Enter, então o pedido chega como lost_focus.
                         if resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
@@ -2036,7 +2038,8 @@ mod tests {
 
         let ctx = egui::Context::default();
         theme::apply(&ctx, cfg.theme);
-        let input = || egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800.0, 600.0))), ..Default::default() };
+        let input =
+            || egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800.0, 600.0))), ..Default::default() };
 
         let mut pediu_thumb = false;
         for _ in 0..40 {
@@ -2097,7 +2100,8 @@ mod tests {
 
         // Um frame com a tecla apertada (o `key_pressed` vale dentro do pass).
         fn apertar(ctx: &egui::Context, app: &mut ImageApp, visible: &[usize], key: egui::Key) {
-            let mut input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800.0, 600.0))), ..Default::default() };
+            let mut input =
+                egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800.0, 600.0))), ..Default::default() };
             input.events.push(egui::Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::NONE });
             let mut out = ctx.run_ui(input, |ui| app.gallery_keys(ui.ctx(), visible));
             out.textures_delta.clear();
@@ -2143,7 +2147,8 @@ mod tests {
 
         let ctx = egui::Context::default();
         theme::apply(&ctx, cfg.theme);
-        let input = || egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800.0, 600.0))), ..Default::default() };
+        let input =
+            || egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800.0, 600.0))), ..Default::default() };
         // Três frames por diálogo: o primeiro abre (pede foco), os outros
         // redesenham com o campo como está.
         let desenhar = |app: &mut ImageApp, dialog: Dialog| {

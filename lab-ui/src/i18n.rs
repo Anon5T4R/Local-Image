@@ -663,14 +663,8 @@ mod tests {
         assert_eq!(t(Lang::Es, Key::MoveTo), "Mover a…");
         assert_eq!(t(Lang::Pt, Key::Undo), "Desfazer");
         assert_eq!(t(Lang::Es, Key::Undo), "Deshacer");
-        assert_eq!(
-            t(Lang::Pt, Key::DeleteToTrashHint),
-            "Vai para a lixeira — dá para recuperar lá."
-        );
-        assert_eq!(
-            t(Lang::Es, Key::DeleteToTrashHint),
-            "Va a la papelera de reciclaje — puedes recuperarlo allí."
-        );
+        assert_eq!(t(Lang::Pt, Key::DeleteToTrashHint), "Vai para a lixeira — dá para recuperar lá.");
+        assert_eq!(t(Lang::Es, Key::DeleteToTrashHint), "Va a la papelera de reciclaje — puedes recuperarlo allí.");
         assert_eq!(t(Lang::En, Key::DeleteToTrashHint), "Goes to the recycle bin — recoverable there.");
     }
 
