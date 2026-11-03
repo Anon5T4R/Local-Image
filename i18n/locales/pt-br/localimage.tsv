@@ -60,7 +60,7 @@
 	File password	Senha do arquivo
 	items imported	itens importados
 	card/identity skipped — the lab only manages login/note	de cartão/identidade pulados — o lab só gerencia login/nota
-	Import	Importação
+	Import report	Importação
 	Generator	Gerador
 	Generate	Gerar
 	Use	Usar
@@ -86,7 +86,7 @@
 	master password changed	senha mestra trocada
 	Attachments	Anexos
 	Add attachment	Adicionar anexo
-	Save	Salvar
+	Save attachment	Salvar
 	no attachments	sem anexos
 	Settings	Configurações
 	Global hotkey	Atalho global
@@ -103,7 +103,7 @@
 	URL	URL
 	Notes	Notas
 	Favorite	Favorito
-	Show/hide	Mostrar/ocultar
+	Reveal	Mostrar/ocultar
 	Export	Exportar
 	JSON (vault in the clear)	JSON (cofre em claro)
 	CSV (spreadsheet)	CSV (planilha)
@@ -123,7 +123,7 @@
 	Delete folder	Excluir pasta
 	No folder	Sem pasta
 	Folder name	Nome da pasta
-	Attachments	Anexos
+	Filter: attachments	Anexos
 	Delete attachment	Excluir anexo
 	All	Todas
 	Drag media here or pick from the playlist	Arraste mídia aqui ou selecione na playlist
@@ -141,3 +141,34 @@
 	KeePass (.kdbx)	KeePass (.kdbx)
 	CSV (Chrome/Edge/LastPass/1Password)	CSV (Chrome/Edge/LastPass/1Password)
 	Check for updates	Verificar atualizações
+	Export clean	Exportar limpa
+	video — opened in the system player	vídeo — aberto no player do sistema
+	Gallery	Galeria
+	no photos or videos here	sem fotos ou vídeos aqui
+	video	vídeo
+	Rename	Renomear
+	Move to…	Mover para…
+	Undo	Desfazer
+	Goes to the recycle bin — recoverable there.	Vai para a lixeira — dá para recuperar lá.
+	no EXIF	sem EXIF
+	no image	sem imagem
+	open a folder to browse	abra uma pasta pra navegar
+	empty name	nome vazio
+	the name cannot contain a path separator (/ or \\)	o nome não pode ter separador de pasta (/ ou \\)
+	the name cannot contain ".."	o nome não pode ter ".."
+	an item with this name already exists: 	já existe um item chamado 
+	moving between drives is not supported yet — copy the file manually	mover entre discos ainda não existe neste app — copie por fora se precisar
+	deletion cancelled	exclusão cancelada
+	gio (trash) not found — install gvfs	gio (trash) não encontrado — instale gvfs
+	rename	renomear
+	move	mover
+	create folder	criar pasta
+	undo	desfazer
+	recycle bin	lixeira
+	file has no parent folder	arquivo sem pasta-pai
+	file has no name	arquivo sem nome
+	rotate 90° ([ and ] also rotate)	girar 90° ([ e ] também giram)
+	re-encodes without EXIF — saves nome.lab.png next to the original	re-encoda sem EXIF — salva nome.lab.png ao lado
+	center (C)	centralizar (C)
+	browse folders (Esc returns to the photo)	navegação por pastas (Esc volta pra foto)
+@plural	{n} item|{n} items	{n} item|{n} itens

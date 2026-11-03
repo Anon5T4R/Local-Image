@@ -17,37 +17,86 @@ fn has_ext(path: &Path, exts: &[&str]) -> bool {
     path.extension().and_then(|e| e.to_str()).map(|e| exts.contains(&e.to_ascii_lowercase().as_str())).unwrap_or(false)
 }
 
-fn is_image(path: &Path) -> bool {
+pub fn is_image(path: &Path) -> bool {
     has_ext(path, IMAGE_EXTS)
 }
 
-fn is_video(path: &Path) -> bool {
+pub fn is_video(path: &Path) -> bool {
     has_ext(path, VIDEO_EXTS)
 }
 
-/// Lista imagens e vídeos da pasta (ordenados sem diferenciar maiúsculas) —
-/// é a sequência das setas ←/→ do visualizador. Ordem de checagem importa: a
-/// extensão é filtrada ANTES de qualquer stat (numa pasta de nuvem é a
-/// diferença entre milissegundos e esperar a rede por cada arquivo).
-pub fn list_dir(dir: &str) -> Result<Vec<PathBuf>, String> {
+/// Limpa o caminho digitado/colado no rodapé. O "Copiar como caminho" do
+/// Windows entrega a pasta entre aspas duplas (`"C:\...\fotos"`) — o
+/// `read_dir` falharia — e sobra espaço no fim de um arrasta-e-solta.
+pub fn sanitize_path_input(s: &str) -> String {
+    let t = s.trim();
+    let t = t.strip_prefix('"').and_then(|r| r.strip_suffix('"')).unwrap_or(t);
+    t.trim().to_string()
+}
+
+/// Remove o prefixo `\\?\` (verbatim) que o `canonicalize` devolve no Windows —
+/// ele vaza pro rodapé e pro breadcrumb se entrar no caminho de exibição. Só o
+/// formato de drive é stripado (`\\?\C:\...`): o `\\?\UNC\...` (rede) tem outro
+/// esquema e o strip quebraria o path. O casing que o canonicalize normaliza
+/// vem junto, então o match com a listagem continua batendo.
+pub fn strip_verbatim(s: &str) -> String {
+    let Some(rest) = s.strip_prefix(r"\\?\") else { return s.to_string() };
+    let b = rest.as_bytes();
+    if b.len() >= 3 && b[0].is_ascii_alphabetic() && b[1] == b':' && (b[2] == b'\\' || b[2] == b'/') {
+        rest.to_string()
+    } else {
+        s.to_string()
+    }
+}
+
+/// Conteúdo de uma pasta, já separado: subpastas (navegação da galeria) e
+/// mídias (a sequência do viewer).
+pub struct DirListing {
+    pub dirs: Vec<PathBuf>,
+    pub files: Vec<PathBuf>,
+}
+
+/// Lista subpastas E mídias da pasta (ordenadas sem diferenciar maiúsculas).
+/// Mesma filosofia do antigo `list_dir`: a extensão é filtrada ANTES de
+/// qualquer stat (numa pasta de nuvem é a diferença entre milissegundos e
+/// esperar a rede por cada arquivo) — o `file_type` do `read_dir` já vem do
+/// diretório lido, sem syscall extra.
+pub fn list_entries(dir: &str) -> Result<DirListing, String> {
     let base = PathBuf::from(dir);
     let entries = std::fs::read_dir(&base).map_err(|e| format!("abrir pasta: {e}"))?;
-    let mut files: Vec<PathBuf> = entries
-        .flatten()
-        .map(|e| (e.file_name(), e.file_type()))
-        .filter_map(|(name, ft)| {
-            let p = base.join(name);
-            if !is_image(&p) && !is_video(&p) {
-                return None;
-            }
-            if ft.map(|t| !t.is_file()).unwrap_or(true) {
-                return None;
-            }
-            Some(p)
-        })
-        .collect();
-    files.sort_by_key(|p| p.file_name().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default());
-    Ok(files)
+    let mut dirs: Vec<PathBuf> = Vec::new();
+    let mut files: Vec<PathBuf> = Vec::new();
+    for entry in entries.flatten() {
+        let Ok(ft) = entry.file_type() else { continue };
+        let p = base.join(entry.file_name());
+        if ft.is_dir() {
+            dirs.push(p);
+        } else if ft.is_file() && (is_image(&p) || is_video(&p)) {
+            files.push(p);
+        }
+    }
+    let by_name = |p: &PathBuf| p.file_name().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
+    dirs.sort_by_key(by_name);
+    files.sort_by_key(by_name);
+    Ok(DirListing { dirs, files })
+}
+
+/// Lista imagens e vídeos da pasta — é a sequência das setas ←/→ do
+/// visualizador (`list_entries` sem as subpastas). O app chama
+/// `list_entries`; o wrapper fica como contrato do núcleo (os testes do
+/// `img.rs` cobrem ele).
+#[cfg_attr(not(test), allow(dead_code))]
+pub fn list_dir(dir: &str) -> Result<Vec<PathBuf>, String> {
+    list_entries(dir).map(|l| l.files)
+}
+
+/// Caminho do RAIZ até `path`, inclusive — a ordem em que o breadcrumb da
+/// galeria desenha. `Path::ancestors` sobe do arquivo pro raiz (e termina na
+/// string vazia de um path relativo), então inverte e descarta o vazio.
+pub fn ancestors(path: &Path) -> Vec<PathBuf> {
+    let mut out: Vec<PathBuf> = path.ancestors().filter(|p| !p.as_os_str().is_empty()).map(Path::to_path_buf).collect();
+    out.reverse();
+    out
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -151,6 +200,78 @@ mod tests {
         let files = list_dir(d.to_str().unwrap()).unwrap();
         let names: Vec<String> = files.iter().map(|p| p.file_name().unwrap().to_string_lossy().into_owned()).collect();
         assert_eq!(names, vec!["a.png", "B.JPG", "filme.MP4"]);
+    }
+
+    #[test]
+    fn separa_subpastas_de_arquivos() {
+        let d = tmpdir("entries");
+        std::fs::create_dir_all(d.join("Zeta")).unwrap();
+        std::fs::create_dir_all(d.join("alfa")).unwrap();
+        std::fs::write(d.join("foto.JPG"), b"x").unwrap();
+        std::fs::write(d.join("filme.mp4"), b"x").unwrap();
+        std::fs::write(d.join("nota.txt"), b"x").unwrap();
+        let listing = list_entries(d.to_str().unwrap()).unwrap();
+        let names = |v: &[PathBuf]| v.iter().map(|p| p.file_name().unwrap().to_string_lossy().into_owned()).collect::<Vec<_>>();
+        // Subpastas na mesma ordem do resto (sem diferenciar maiúsculas) e o
+        // .txt fora das duas listas.
+        assert_eq!(names(&listing.dirs), vec!["alfa", "Zeta"]);
+        assert_eq!(names(&listing.files), vec!["filme.mp4", "foto.JPG"]);
+        // `list_dir` é o mesmo scan sem as subpastas (contrato do viewer).
+        assert_eq!(list_dir(d.to_str().unwrap()).unwrap(), listing.files);
+    }
+
+    #[test]
+    fn ancestrais_vao_do_raiz_ate_a_pasta() {
+        // Relativo: vale em qualquer SO (o CI também roda Linux).
+        assert_eq!(
+            ancestors(Path::new("a/b/c")),
+            vec![PathBuf::from("a"), PathBuf::from("a/b"), PathBuf::from("a/b/c")]
+        );
+        // Um componente só: o próprio (nada de path vazio na frente).
+        assert_eq!(ancestors(Path::new("fotos")), vec![PathBuf::from("fotos")]);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn ancestrais_de_caminho_windows() {
+        // A raiz `C:\` não tem `file_name`: o breadcrumb mostra o path dela.
+        assert_eq!(
+            ancestors(Path::new(r"C:\Users\joao\fotos")),
+            vec![
+                PathBuf::from(r"C:\"),
+                PathBuf::from(r"C:\Users"),
+                PathBuf::from(r"C:\Users\joao"),
+                PathBuf::from(r"C:\Users\joao\fotos"),
+            ]
+        );
+    }
+
+    #[test]
+    fn sanitiza_caminho_entre_aspas() {
+        // O "Copiar como caminho" do Windows põe aspas em volta.
+        assert_eq!(sanitize_path_input(r#""C:\Users\joao\fotos""#), r"C:\Users\joao\fotos");
+    }
+
+    #[test]
+    fn sanitiza_caminho_sem_aspas() {
+        assert_eq!(sanitize_path_input(r"C:\Users\joao\fotos"), r"C:\Users\joao\fotos");
+        // Aspa só de um lado não é aspas "envolvendo": fica como veio.
+        assert_eq!(sanitize_path_input("\"C:\\fotos"), "\"C:\\fotos");
+    }
+
+    #[test]
+    fn sanitiza_espacos_sobrando() {
+        assert_eq!(sanitize_path_input("  /home/joao/fotos \t"), "/home/joao/fotos");
+        // Aspas com espaço por fora também são limpas (ordem: trim → aspas → trim).
+        assert_eq!(sanitize_path_input(" \"C:\\fotos\" "), r"C:\fotos");
+    }
+
+    #[test]
+    fn strip_verbatim_so_no_formato_de_drive() {
+        assert_eq!(strip_verbatim(r"\\?\C:\Users\joao\fotos"), r"C:\Users\joao\fotos");
+        assert_eq!(strip_verbatim(r"C:\Users\joao\fotos"), r"C:\Users\joao\fotos");
+        // Caminho de rede (UNC): o prefixo é de OUTRO esquema e fica como está.
+        assert_eq!(strip_verbatim(r"\\?\UNC\servidor\compart\fotos"), r"\\?\UNC\servidor\compart\fotos");
     }
 
     #[test]

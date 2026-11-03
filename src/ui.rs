@@ -8,31 +8,36 @@ const FIELD_MARGIN: egui::Margin = egui::Margin::symmetric(10, 6);
 /// Altura externa mínima de um campo de uma linha.
 const FIELD_MIN_HEIGHT: f32 = 30.0;
 
-/// Cores derivadas do tema vigente (nada fixo: o lab tem 5 paletas).
+/// Cores derivadas do tema vigente (nada fixo: o lab tem 5 paletas). Visível
+/// pro `main.rs` porque a grade da galeria desenha o cartão do tile à mão.
 #[derive(Clone, Copy)]
-struct Skin {
+pub(crate) struct Skin {
     /// Fundo do cartão do diálogo (o "sunken" da paleta).
-    card: egui::Color32,
+    pub(crate) card: egui::Color32,
     /// Fundo dos campos DENTRO do diálogo (o "base", o inverso do cartão).
     field: egui::Color32,
-    accent: egui::Color32,
+    pub(crate) accent: egui::Color32,
     /// Texto sobre `accent` (pill primário).
     on_accent: egui::Color32,
     text: egui::Color32,
-    muted: egui::Color32,
-    border: egui::Color32,
+    pub(crate) muted: egui::Color32,
+    pub(crate) border: egui::Color32,
     /// Lavagem de hover (ghost buttons).
     hover: egui::Color32,
 }
 
 impl Skin {
-    fn of(ui: &egui::Ui) -> Self {
+    pub(crate) fn of(ui: &egui::Ui) -> Self {
         Self::from_visuals(ui.visuals())
     }
 
     fn from_visuals(v: &egui::Visuals) -> Self {
         let text = v.override_text_color.unwrap_or(v.widgets.noninteractive.fg_stroke.color);
-        let accent = v.selection.bg_fill;
+        // Accent SÓLIDO (theme.rs publica em `selection.stroke`): o
+        // `selection.bg_fill` é a lavagem 35% de seleção — usálo aqui deixava
+        // o anel de seleção dos tiles quase invisível no tema claro e o texto
+        // dos pills primários sem contraste.
+        let accent = v.selection.stroke.color;
         Self {
             card: v.extreme_bg_color,
             field: v.panel_fill,
@@ -96,11 +101,10 @@ pub(crate) fn pill(ui: &mut egui::Ui, label: &str, primary: bool) -> egui::Respo
     }
 }
 
-/// Pill de ação destrutiva (vermelho fixo: legível nos dois temas). O
-/// local-image não tem ação destrutiva — o kit vem completo do lab-keys pra
-/// manter as cópias alinhadas.
-#[allow(dead_code)]
-fn pill_danger(ui: &mut egui::Ui, label: &str) -> egui::Response {
+/// Pill de ação destrutiva (vermelho fixo: legível nos dois temas) — o
+/// Confirmar da exclusão da galeria (a ação pode remover o arquivo da pasta,
+/// via lixeira).
+pub(crate) fn pill_danger(ui: &mut egui::Ui, label: &str) -> egui::Response {
     pill_colored(ui, label, egui::Color32::from_rgb(0xC0, 0x3A, 0x3A), egui::Color32::WHITE, false)
 }
 
