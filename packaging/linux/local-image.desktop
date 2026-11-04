@@ -1,6 +1,8 @@
 [Desktop Entry]
 Type=Application
 Name=Local Image
+GenericName=Image Viewer
+Keywords=image;viewer;photo;gallery;pictures;local;
 Exec=local-image
 Icon=local-image
 Categories=Graphics;
