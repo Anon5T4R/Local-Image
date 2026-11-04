@@ -7,7 +7,11 @@
 
 use std::path::{Path, PathBuf};
 
-pub const IMAGE_EXTS: &[&str] = &["png", "jpg", "jpeg", "webp", "gif", "bmp", "tif", "tiff", "ico", "avif"];
+/// "avif" NÃO está aqui de propósito: o crate `image` só decodifica AVIF com a
+/// feature `avif-native` (dav1d, C — contra a filosofia craft de Rust puro);
+/// listar sem decoder = arquivo aparece no grid e quebra ao abrir.
+/// "jxl" decodifica via hook do jxl-rs registrado no main.
+pub const IMAGE_EXTS: &[&str] = &["png", "jpg", "jpeg", "webp", "gif", "bmp", "tif", "tiff", "ico", "jxl"];
 
 /// Vídeos entram na navegação (pra não sumirem do meio da pasta), mas o
 /// local-image não os decodifica — só abre no app padrão do sistema.
@@ -81,7 +85,12 @@ pub struct ImageInfo {
 
 /// Dimensões + tamanho sem decodificar a imagem inteira.
 pub fn image_info(path: &Path) -> Result<ImageInfo, String> {
-    let (width, height) = image::image_dimensions(path).map_err(|e| format!("ler cabeçalho: {e}"))?;
+    // O fallback cobre o caso do `image_dimensions` não passar pelo hook de
+    // decode registrado (só então ele decodifica — dimensão é do cabeçalho,
+    // então pra formatos suportados isso só roda se o arquivo já está quebrado).
+    let (width, height) = image::image_dimensions(path)
+        .or_else(|_| image::open(path).map(|im| (im.width(), im.height())))
+        .map_err(|e| format!("ler cabeçalho: {e}"))?;
     let size_bytes = std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
     Ok(ImageInfo { width, height, size_bytes })
 }
@@ -117,8 +126,8 @@ pub fn exif_info(path: &Path) -> Vec<(String, String)> {
         .collect()
 }
 
-/// Export re-encodando (JPEG ou PNG): gira `deg` (múltiplo de 90) e/ou
-/// redimensiona pra caber em `max_side` se maior. O re-encode é o que
+/// Export re-encodando (PNG, JPEG ou JXL lossless): gira `deg` (múltiplo de
+/// 90) e/ou redimensiona pra caber em `max_side` se maior. O re-encode é o que
 /// garante a privacidade — EXIF nunca sobrevive.
 pub fn export(src: &Path, dst: &Path, deg: u32, max_side: Option<u32>, jpeg_quality: u8) -> Result<(), String> {
     let img = image::open(src).map_err(|e| format!("decodificar: {e}"))?;
@@ -136,6 +145,15 @@ pub fn export(src: &Path, dst: &Path, deg: u32, max_side: Option<u32>, jpeg_qual
     let ext = dst.extension().and_then(|e| e.to_str()).unwrap_or("jpg").to_ascii_lowercase();
     match ext.as_str() {
         "png" => img.save(&dst).map_err(|e| e.to_string()),
+        // JXL: lossless (Modular), alpha preservada. Sem `with_metadata`:
+        // EXIF/XMP não migram — a promessa do app continua valendo.
+        "jxl" => {
+            let rgba = img.to_rgba8();
+            let jxl = jxl_encoder::LosslessConfig::new()
+                .encode(rgba.as_raw(), rgba.width(), rgba.height(), jxl_encoder::PixelLayout::Rgba8)
+                .map_err(|e| e.to_string())?;
+            std::fs::write(&dst, jxl).map_err(|e| e.to_string())
+        }
         // JPEG: qualidade explícita; alpha vira fundo preto.
         _ => {
             let rgb = img.to_rgb8();
@@ -231,5 +249,29 @@ mod tests {
         export(&d.join("big.png"), &d.join("small.png"), 0, Some(500), 90).unwrap();
         let dec = image::open(d.join("small.png")).unwrap();
         assert_eq!((dec.width(), dec.height()), (500, 250));
+    }
+
+    #[test]
+    fn export_jxl_lossless_e_decodifica() {
+        let d = tmpdir("exp-jxl");
+        let img = image::RgbImage::from_fn(8, 8, |x, y| image::Rgb([(x * 30) as u8, (y * 30) as u8, 128]));
+        img.save_with_format(d.join("in.png"), image::ImageFormat::Png).unwrap();
+
+        export(&d.join("in.png"), &d.join("out.jxl"), 0, None, 90).unwrap();
+
+        // Assinaturas válidas de JXL: codestream nu ou container ISOBMFF.
+        let bytes = std::fs::read(d.join("out.jxl")).unwrap();
+        assert!(
+            bytes.starts_with(&[0xff, 0x0a]) || bytes.starts_with(&[0x00, 0x00, 0x00, 0x0c, b'J', b'X', b'L', b' ']),
+            "saída não tem assinatura JXL"
+        );
+
+        // Roundtrip pelo hook do jxl-rs (mesmo caminho que o viewer usa).
+        jxl_image_rs_integration::register_image_decoding_hook();
+        let dec = image::open(d.join("out.jxl")).unwrap();
+        assert_eq!((dec.width(), dec.height()), (8, 8));
+        // Lossless: pixel conferido bit a bit.
+        let rgba = dec.to_rgba8();
+        assert_eq!(*rgba.get_pixel(3, 5), image::Rgba([90, 150, 128, 255]));
     }
 }

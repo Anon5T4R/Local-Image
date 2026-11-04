@@ -51,6 +51,10 @@ fn load_icon() -> Option<egui::IconData> {
 }
 
 fn main() -> eframe::Result<()> {
+    // JPEG XL: registra o decoder jxl-rs (o mesmo do Chrome/Firefox) no
+    // `image` — processo inteiro, ANTES de qualquer open/dimensions.
+    jxl_image_rs_integration::register_image_decoding_hook();
+
     // Windows: o helper de update é uma CÓPIA deste programa iniciada com
     // `--finish-update` (craft_update). Roda ANTES de tudo.
     #[cfg(windows)]
@@ -160,9 +164,28 @@ enum Job {
     Decode(PathBuf),
     Exif(PathBuf),
     /// Export de privacidade: re-encoda girado `deg` (múltiplo de 90 — a
-    /// rotação corrente do viewer) como PNG ao lado do original
-    /// (`nome.lab.png`) — EXIF nunca sobrevive.
-    Export(PathBuf, u32),
+    /// rotação corrente do viewer) no formato `fmt` ao lado do original
+    /// (`nome.lab.<ext>`) — EXIF nunca sobrevive.
+    Export(PathBuf, u32, ExportFmt),
+}
+
+/// Formato do export limpo. PNG/JPEG são o par universal; JXL lossless é o
+/// arquivo menor pra quem já vive no ecossistema novo (Chrome 155+/Fx 158+).
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum ExportFmt {
+    Png,
+    Jpg,
+    Jxl,
+}
+
+impl ExportFmt {
+    fn ext(self) -> &'static str {
+        match self {
+            ExportFmt::Png => "png",
+            ExportFmt::Jpg => "jpg",
+            ExportFmt::Jxl => "jxl",
+        }
+    }
 }
 
 enum Done {
@@ -189,8 +212,8 @@ fn spawn_job(job: Job, tx: Sender<Done>) {
         Job::Exif(path) => {
             let _ = tx.send(Done::Exif(img::exif_info(&path)));
         }
-        Job::Export(src, deg) => {
-            let dst = src.with_extension("lab.png");
+        Job::Export(src, deg, fmt) => {
+            let dst = src.with_extension(format!("lab.{}", fmt.ext()));
             let _ = tx.send(Done::Export(img::export(&src, &dst, deg, None, 90).map(|_| dst)));
         }
     });
@@ -715,14 +738,28 @@ impl eframe::App for ImageApp {
                         // dizia nada e o painel EXIF agora é a tecla "i".
                         // A guarda acompanha o ⟳/⊙ ao lado (`tex`): vídeo ou
                         // decode no ar só dariam "⚠ decodificar" ao clicar.
-                        if self.tex.is_some()
-                            && pill(ui, i18n::t(self.cfg.lang, Key::ExportClean), false)
-                                .on_hover_text(i18n::t(self.cfg.lang, Key::ExportCleanHint))
-                                .clicked()
-                        {
-                            if let Some(p) = self.current() {
-                                let p = p.clone();
-                                self.request(Job::Export(p, (self.rot % 4) * 90));
+                        // O clique abre o menu de formato (PNG/JPEG/JXL).
+                        if self.tex.is_some() {
+                            let btn = pill(ui, i18n::t(self.cfg.lang, Key::ExportClean), false)
+                                .on_hover_text(i18n::t(self.cfg.lang, Key::ExportCleanHint));
+                            let mut picked: Option<ExportFmt> = None;
+                            egui::Popup::menu(&btn).show(|ui| {
+                                ui.set_min_width(90.0);
+                                if ui.button("PNG").clicked() {
+                                    picked = Some(ExportFmt::Png);
+                                }
+                                if ui.button("JPEG").clicked() {
+                                    picked = Some(ExportFmt::Jpg);
+                                }
+                                if ui.button("JXL").clicked() {
+                                    picked = Some(ExportFmt::Jxl);
+                                }
+                            });
+                            if let Some(fmt) = picked {
+                                if let Some(p) = self.current() {
+                                    let p = p.clone();
+                                    self.request(Job::Export(p, (self.rot % 4) * 90, fmt));
+                                }
                             }
                         }
                         if self.tex.is_some() && ghost(ui, "⊙").on_hover_text(i18n::t(self.cfg.lang, Key::CenterHint)).clicked() {

@@ -526,7 +526,7 @@ pub fn t(lang: Lang, key: Key) -> &'static str {
         Key::NoImage => "no image",
         Key::PickFolder => "open a folder to browse",
         Key::RotateHint => "rotate 90° ([ and ] also rotate)",
-        Key::ExportCleanHint => "re-encodes without EXIF — saves nome.lab.png next to the original",
+        Key::ExportCleanHint => "re-encodes without EXIF — pick the format; saves nome.lab.<ext> next to the original",
         Key::CenterHint => "center (C)",
     };
     let craft_lang = I18N.from_code(code).unwrap_or_else(|| I18N.from_code("en").expect("en é builtin"));
@@ -563,7 +563,7 @@ mod tests {
     fn hovers_do_viewer_traduzidos() {
         assert_eq!(t(Lang::Pt, Key::RotateHint), "girar 90° ([ e ] também giram)");
         assert_eq!(t(Lang::Es, Key::RotateHint), "girar 90° ([ y ] también giran)");
-        assert_eq!(t(Lang::Pt, Key::ExportCleanHint), "re-encoda sem EXIF — salva nome.lab.png ao lado");
+        assert_eq!(t(Lang::Pt, Key::ExportCleanHint), "re-encoda sem EXIF — escolha o formato; salva nome.lab.<ext> ao lado");
         assert_eq!(t(Lang::Pt, Key::CenterHint), "centralizar (C)");
         // Estado vazio (boot sem arquivo) e painel EXIF continuam traduzidos.
         assert_eq!(t(Lang::Pt, Key::PickFolder), "abra uma pasta pra navegar");
