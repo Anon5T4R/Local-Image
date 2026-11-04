@@ -40,12 +40,11 @@ eframe = "0.37"
 egui = "0.37"
 # 0.25.9+ = API de hooks que o jxl-image-rs-integration exige (`image::hooks`).
 image = "0.25.9"
-# JPEG XL (decode): jxl-rs — o decoder usado por Chrome/Firefox, 100% Rust.
-# Registra o hook uma vez e `image::open` passa a entender `.jxl`.
+# JPEG XL (decode): jxl-rs — o decoder usado por Chrome/Firefox, 100% Rust,
+# BSD-3. Registra o hook uma vez e `image::open` passa a entender `.jxl`.
+# (Encode JXL avaliado e vetado: jxl-encoder é AGPL; deny.toml só permite
+# deps permissivas.)
 jxl-image-rs-integration = "0.8"
-# JPEG XL (encode): export lossless. default-features = false desliga o
-# butteraugli-loop (loop de qualidade do modo LOSSY — não usado aqui).
-jxl-encoder = { version = "0.3", default-features = false, features = ["std"] }
 lab-ui = { path = "lab-ui" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

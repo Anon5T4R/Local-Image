@@ -126,9 +126,11 @@ pub fn exif_info(path: &Path) -> Vec<(String, String)> {
         .collect()
 }
 
-/// Export re-encodando (PNG, JPEG ou JXL lossless): gira `deg` (múltiplo de
+/// Export re-encodando (JPEG ou PNG): gira `deg` (múltiplo de
 /// 90) e/ou redimensiona pra caber em `max_side` se maior. O re-encode é o que
 /// garante a privacidade — EXIF nunca sobrevive.
+/// (Export JXL foi avaliado e ficará de fora: o encoder puro-Rust é AGPL
+/// e o deny.toml trava copyleft de terceiros — decode é BSD e fica.)
 pub fn export(src: &Path, dst: &Path, deg: u32, max_side: Option<u32>, jpeg_quality: u8) -> Result<(), String> {
     let img = image::open(src).map_err(|e| format!("decodificar: {e}"))?;
     let img = match deg % 360 {
@@ -145,15 +147,6 @@ pub fn export(src: &Path, dst: &Path, deg: u32, max_side: Option<u32>, jpeg_qual
     let ext = dst.extension().and_then(|e| e.to_str()).unwrap_or("jpg").to_ascii_lowercase();
     match ext.as_str() {
         "png" => img.save(&dst).map_err(|e| e.to_string()),
-        // JXL: lossless (Modular), alpha preservada. Sem `with_metadata`:
-        // EXIF/XMP não migram — a promessa do app continua valendo.
-        "jxl" => {
-            let rgba = img.to_rgba8();
-            let jxl = jxl_encoder::LosslessConfig::new()
-                .encode(rgba.as_raw(), rgba.width(), rgba.height(), jxl_encoder::PixelLayout::Rgba8)
-                .map_err(|e| e.to_string())?;
-            std::fs::write(&dst, jxl).map_err(|e| e.to_string())
-        }
         // JPEG: qualidade explícita; alpha vira fundo preto.
         _ => {
             let rgb = img.to_rgb8();
@@ -252,25 +245,13 @@ mod tests {
     }
 
     #[test]
-    fn export_jxl_lossless_e_decodifica() {
-        let d = tmpdir("exp-jxl");
-        let img = image::RgbImage::from_fn(8, 8, |x, y| image::Rgb([(x * 30) as u8, (y * 30) as u8, 128]));
-        img.save_with_format(d.join("in.png"), image::ImageFormat::Png).unwrap();
-
-        export(&d.join("in.png"), &d.join("out.jxl"), 0, None, 90).unwrap();
-
-        // Assinaturas válidas de JXL: codestream nu ou container ISOBMFF.
-        let bytes = std::fs::read(d.join("out.jxl")).unwrap();
-        assert!(
-            bytes.starts_with(&[0xff, 0x0a]) || bytes.starts_with(&[0x00, 0x00, 0x00, 0x0c, b'J', b'X', b'L', b' ']),
-            "saída não tem assinatura JXL"
-        );
-
-        // Roundtrip pelo hook do jxl-rs (mesmo caminho que o viewer usa).
+    fn decodifica_jxl_do_fixture() {
+        // Fixture gerado uma vez com jxl-encoder (lossless, 8×8) — o encoder
+        // saiu do grafo (deny.toml: deps só permissivas; AGPL não entra),
+        // o que fica testado é o caminho do viewer: hook do jxl-rs + image::open.
         jxl_image_rs_integration::register_image_decoding_hook();
-        let dec = image::open(d.join("out.jxl")).unwrap();
+        let dec = image::open(std::path::Path::new("tests/fixtures/sample.jxl")).unwrap();
         assert_eq!((dec.width(), dec.height()), (8, 8));
-        // Lossless: pixel conferido bit a bit.
         let rgba = dec.to_rgba8();
         assert_eq!(*rgba.get_pixel(3, 5), image::Rgba([90, 150, 128, 255]));
     }

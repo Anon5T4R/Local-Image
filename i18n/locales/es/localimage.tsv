@@ -146,5 +146,5 @@
 	no image	sin imagen
 	open a folder to browse	abre una carpeta para explorar
 	rotate 90° ([ and ] also rotate)	girar 90° ([ y ] también giran)
-	re-encodes without EXIF — pick the format; saves nome.lab.<ext> next to the original	recodifica sin EXIF — elige el formato; guarda nome.lab.<ext> al lado
+	re-encodes without EXIF — saves nome.lab.png next to the original	recodifica sin EXIF — guarda nome.lab.png al lado
 	center (C)	centrar (C)
