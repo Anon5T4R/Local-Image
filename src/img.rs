@@ -49,54 +49,27 @@ pub fn strip_verbatim(s: &str) -> String {
     }
 }
 
-/// Conteúdo de uma pasta, já separado: subpastas (navegação da galeria) e
-/// mídias (a sequência do viewer).
-pub struct DirListing {
-    pub dirs: Vec<PathBuf>,
-    pub files: Vec<PathBuf>,
-}
-
-/// Lista subpastas E mídias da pasta (ordenadas sem diferenciar maiúsculas).
-/// Mesma filosofia do antigo `list_dir`: a extensão é filtrada ANTES de
-/// qualquer stat (numa pasta de nuvem é a diferença entre milissegundos e
-/// esperar a rede por cada arquivo) — o `file_type` do `read_dir` já vem do
+/// Lista imagens e vídeos da pasta (ordenados sem diferenciar maiúsculas) —
+/// é a sequência das setas ←/→ do visualizador. A extensão é filtrada ANTES
+/// de qualquer stat (numa pasta de nuvem é a diferença entre milissegundos e
+/// esperar a rede por cada arquivo); o `file_type` do `read_dir` já vem do
 /// diretório lido, sem syscall extra.
-pub fn list_entries(dir: &str) -> Result<DirListing, String> {
+pub fn list_dir(dir: &str) -> Result<Vec<PathBuf>, String> {
     let base = PathBuf::from(dir);
     let entries = std::fs::read_dir(&base).map_err(|e| format!("abrir pasta: {e}"))?;
-    let mut dirs: Vec<PathBuf> = Vec::new();
-    let mut files: Vec<PathBuf> = Vec::new();
-    for entry in entries.flatten() {
-        let Ok(ft) = entry.file_type() else { continue };
-        let p = base.join(entry.file_name());
-        if ft.is_dir() {
-            dirs.push(p);
-        } else if ft.is_file() && (is_image(&p) || is_video(&p)) {
-            files.push(p);
-        }
-    }
-    let by_name = |p: &PathBuf| p.file_name().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
-    dirs.sort_by_key(by_name);
-    files.sort_by_key(by_name);
-    Ok(DirListing { dirs, files })
-}
-
-/// Lista imagens e vídeos da pasta — é a sequência das setas ←/→ do
-/// visualizador (`list_entries` sem as subpastas). O app chama
-/// `list_entries`; o wrapper fica como contrato do núcleo (os testes do
-/// `img.rs` cobrem ele).
-#[cfg_attr(not(test), allow(dead_code))]
-pub fn list_dir(dir: &str) -> Result<Vec<PathBuf>, String> {
-    list_entries(dir).map(|l| l.files)
-}
-
-/// Caminho do RAIZ até `path`, inclusive — a ordem em que o breadcrumb da
-/// galeria desenha. `Path::ancestors` sobe do arquivo pro raiz (e termina na
-/// string vazia de um path relativo), então inverte e descarta o vazio.
-pub fn ancestors(path: &Path) -> Vec<PathBuf> {
-    let mut out: Vec<PathBuf> = path.ancestors().filter(|p| !p.as_os_str().is_empty()).map(Path::to_path_buf).collect();
-    out.reverse();
-    out
+    let mut files: Vec<PathBuf> = entries
+        .flatten()
+        .filter_map(|entry| {
+            let Ok(ft) = entry.file_type() else { return None };
+            let p = base.join(entry.file_name());
+            if !ft.is_file() || !(is_image(&p) || is_video(&p)) {
+                return None;
+            }
+            Some(p)
+        })
+        .collect();
+    files.sort_by_key(|p| p.file_name().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default());
+    Ok(files)
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -203,42 +176,6 @@ mod tests {
     }
 
     #[test]
-    fn separa_subpastas_de_arquivos() {
-        let d = tmpdir("entries");
-        std::fs::create_dir_all(d.join("Zeta")).unwrap();
-        std::fs::create_dir_all(d.join("alfa")).unwrap();
-        std::fs::write(d.join("foto.JPG"), b"x").unwrap();
-        std::fs::write(d.join("filme.mp4"), b"x").unwrap();
-        std::fs::write(d.join("nota.txt"), b"x").unwrap();
-        let listing = list_entries(d.to_str().unwrap()).unwrap();
-        let names = |v: &[PathBuf]| v.iter().map(|p| p.file_name().unwrap().to_string_lossy().into_owned()).collect::<Vec<_>>();
-        // Subpastas na mesma ordem do resto (sem diferenciar maiúsculas) e o
-        // .txt fora das duas listas.
-        assert_eq!(names(&listing.dirs), vec!["alfa", "Zeta"]);
-        assert_eq!(names(&listing.files), vec!["filme.mp4", "foto.JPG"]);
-        // `list_dir` é o mesmo scan sem as subpastas (contrato do viewer).
-        assert_eq!(list_dir(d.to_str().unwrap()).unwrap(), listing.files);
-    }
-
-    #[test]
-    fn ancestrais_vao_do_raiz_ate_a_pasta() {
-        // Relativo: vale em qualquer SO (o CI também roda Linux).
-        assert_eq!(ancestors(Path::new("a/b/c")), vec![PathBuf::from("a"), PathBuf::from("a/b"), PathBuf::from("a/b/c")]);
-        // Um componente só: o próprio (nada de path vazio na frente).
-        assert_eq!(ancestors(Path::new("fotos")), vec![PathBuf::from("fotos")]);
-    }
-
-    #[cfg(windows)]
-    #[test]
-    fn ancestrais_de_caminho_windows() {
-        // A raiz `C:\` não tem `file_name`: o breadcrumb mostra o path dela.
-        assert_eq!(
-            ancestors(Path::new(r"C:\Users\joao\fotos")),
-            vec![PathBuf::from(r"C:\"), PathBuf::from(r"C:\Users"), PathBuf::from(r"C:\Users\joao"), PathBuf::from(r"C:\Users\joao\fotos"),]
-        );
-    }
-
-    #[test]
     fn sanitiza_caminho_entre_aspas() {
         // O "Copiar como caminho" do Windows põe aspas em volta.
         assert_eq!(sanitize_path_input(r#""C:\Users\joao\fotos""#), r"C:\Users\joao\fotos");
@@ -288,7 +225,7 @@ mod tests {
 
     #[test]
     fn export_redimensiona_pro_teto() {
-        let d = tmpdir("thumb");
+        let d = tmpdir("exp-max");
         let img = image::RgbImage::from_fn(2000, 1000, |_, _| image::Rgb([1, 2, 3]));
         img.save_with_format(d.join("big.png"), image::ImageFormat::Png).unwrap();
         export(&d.join("big.png"), &d.join("small.png"), 0, Some(500), 90).unwrap();

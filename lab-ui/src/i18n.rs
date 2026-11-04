@@ -179,7 +179,6 @@ pub enum Key {
     Deleted,
     Close,
     // lab-keys: pastas + filtro por anexos
-    Folders,
     Folder,
     NewFolder,
     RenameFolder,
@@ -204,40 +203,14 @@ pub enum Key {
     // local-image
     ExportClean,
     VideoHint,
-    // local-image: modo galeria
-    Gallery,
-    NoMedia,
-    VideoTile,
-    // local-image: gerenciamento de arquivos da galeria
-    Rename,
-    MoveTo,
-    Undo,
-    DeleteToTrashHint,
-    // galeria QA (painel EXIF/estado vazio)
+    // local-image: painel EXIF/estado vazio
     NoExif,
     NoImage,
     PickFolder,
-    // galeria QA: erros do fsops traduzidos na borda da UI (o fsops devolve
-    // enum estruturado; o texto que o usuário lê nasce aqui)
-    FsErrEmptyName,
-    FsErrSeparator,
-    FsErrDotDot,
-    FsErrExists,
-    FsErrCrossVolume,
-    FsErrCancelled,
-    FsErrNoGio,
-    FsErrRename,
-    FsErrMove,
-    FsErrCreate,
-    FsErrUndo,
-    FsErrTrash,
-    FsErrNoParent,
-    FsErrNoName,
-    // galeria QA: hovers da toolbar do viewer e da pill da galeria
+    // local-image: hovers da toolbar do viewer
     RotateHint,
     ExportCleanHint,
     CenterHint,
-    GalleryHint,
 }
 
 /// Todas as chaves — usado pelo teste de completude (fora de teste o match
@@ -368,7 +341,6 @@ const KEYS: &[Key] = &[
     Key::DeleteForever,
     Key::Deleted,
     Key::Close,
-    Key::Folders,
     Key::Folder,
     Key::NewFolder,
     Key::RenameFolder,
@@ -390,34 +362,12 @@ const KEYS: &[Key] = &[
     Key::MpvNotInPath,
     Key::ExportClean,
     Key::VideoHint,
-    Key::Gallery,
-    Key::NoMedia,
-    Key::VideoTile,
-    Key::Rename,
-    Key::MoveTo,
-    Key::Undo,
-    Key::DeleteToTrashHint,
     Key::NoExif,
     Key::NoImage,
     Key::PickFolder,
-    Key::FsErrEmptyName,
-    Key::FsErrSeparator,
-    Key::FsErrDotDot,
-    Key::FsErrExists,
-    Key::FsErrCrossVolume,
-    Key::FsErrCancelled,
-    Key::FsErrNoGio,
-    Key::FsErrRename,
-    Key::FsErrMove,
-    Key::FsErrCreate,
-    Key::FsErrUndo,
-    Key::FsErrTrash,
-    Key::FsErrNoParent,
-    Key::FsErrNoName,
     Key::RotateHint,
     Key::ExportCleanHint,
     Key::CenterHint,
-    Key::GalleryHint,
 ];
 
 pub fn t(lang: Lang, key: Key) -> &'static str {
@@ -546,7 +496,6 @@ pub fn t(lang: Lang, key: Key) -> &'static str {
         Key::DeleteForever => "Delete forever",
         Key::Deleted => "deleted forever",
         Key::Close => "Close",
-        Key::Folders => "Folders",
         Key::Folder => "Folder",
         Key::NewFolder => "New folder",
         Key::RenameFolder => "Rename folder",
@@ -573,52 +522,15 @@ pub fn t(lang: Lang, key: Key) -> &'static str {
         Key::CheckUpdates => "Check for updates",
         Key::ExportClean => "Export clean",
         Key::VideoHint => "video — opened in the system player",
-        Key::Gallery => "Gallery",
-        Key::NoMedia => "no photos or videos here",
-        Key::VideoTile => "video",
-        Key::Rename => "Rename",
-        Key::MoveTo => "Move to…",
-        Key::Undo => "Undo",
-        Key::DeleteToTrashHint => "Goes to the recycle bin — recoverable there.",
         Key::NoExif => "no EXIF",
         Key::NoImage => "no image",
         Key::PickFolder => "open a folder to browse",
-        Key::FsErrEmptyName => "empty name",
-        // `\\)` no literal = `\)` na fonte: é a contrabarra que o usuário vê.
-        Key::FsErrSeparator => "the name cannot contain a path separator (/ or \\)",
-        Key::FsErrDotDot => "the name cannot contain \"..\"",
-        // Fonte termina com ": " porque o nome do arquivo entra em seguida.
-        Key::FsErrExists => "an item with this name already exists: ",
-        Key::FsErrCrossVolume => "moving between drives is not supported yet — copy the file manually",
-        Key::FsErrCancelled => "deletion cancelled",
-        Key::FsErrNoGio => "gio (trash) not found — install gvfs",
-        Key::FsErrRename => "rename",
-        Key::FsErrMove => "move",
-        Key::FsErrCreate => "create folder",
-        Key::FsErrUndo => "undo",
-        Key::FsErrTrash => "recycle bin",
-        Key::FsErrNoParent => "file has no parent folder",
-        Key::FsErrNoName => "file has no name",
         Key::RotateHint => "rotate 90° ([ and ] also rotate)",
         Key::ExportCleanHint => "re-encodes without EXIF — saves nome.lab.png next to the original",
         Key::CenterHint => "center (C)",
-        Key::GalleryHint => "browse folders (Esc returns to the photo)",
     };
     let craft_lang = I18N.from_code(code).unwrap_or_else(|| I18N.from_code("en").expect("en é builtin"));
     I18N.t(craft_lang, source)
-}
-
-/// Contagem de itens com a pluralização do motor (`trn`): "1 item" / "7 items".
-/// O `format!` de antes colava o número no rótulo fixo ("1 Items"); as formas
-/// inglesas são também a chave da linha `@plural` do catálogo.
-pub fn t_items(lang: Lang, n: usize) -> String {
-    let code = match lang {
-        Lang::Pt => "pt-br",
-        Lang::En => "en",
-        Lang::Es => "es",
-    };
-    let craft_lang = I18N.from_code(code).unwrap_or_else(|| I18N.from_code("en").expect("en é builtin"));
-    I18N.trn(craft_lang, n as u64, "{n} item", "{n} items")
 }
 
 #[cfg(test)]
@@ -645,70 +557,18 @@ mod tests {
         assert_eq!(t(Lang::En, Key::Vault), "Vault");
     }
 
-    /// As chaves da galeria saem do TSV nos 3 idiomas (não sobrou em inglês).
+    /// Os hovers do viewer saem do TSV nos 2 catálogos — se uma linha caísse
+    /// na validação do craft-i18n, o teste veria o inglês.
     #[test]
-    fn galeria_traduzida() {
-        assert_eq!(t(Lang::En, Key::Gallery), "Gallery");
-        assert_eq!(t(Lang::Pt, Key::Gallery), "Galeria");
-        assert_eq!(t(Lang::Es, Key::Gallery), "Galería");
-        assert_eq!(t(Lang::Pt, Key::NoMedia), "sem fotos ou vídeos aqui");
-        assert_eq!(t(Lang::Es, Key::NoMedia), "sin fotos ni vídeos aquí");
-        assert_eq!(t(Lang::Pt, Key::VideoTile), "vídeo");
-        assert_eq!(t(Lang::Es, Key::VideoTile), "vídeo");
-        // Gerenciamento de arquivos: as 4 chaves novas saem do TSV nos 3
-        // idiomas (não sobrou em inglês).
-        assert_eq!(t(Lang::Pt, Key::Rename), "Renomear");
-        assert_eq!(t(Lang::Es, Key::Rename), "Renombrar");
-        assert_eq!(t(Lang::Pt, Key::MoveTo), "Mover para…");
-        assert_eq!(t(Lang::Es, Key::MoveTo), "Mover a…");
-        assert_eq!(t(Lang::Pt, Key::Undo), "Desfazer");
-        assert_eq!(t(Lang::Es, Key::Undo), "Deshacer");
-        assert_eq!(t(Lang::Pt, Key::DeleteToTrashHint), "Vai para a lixeira — dá para recuperar lá.");
-        assert_eq!(t(Lang::Es, Key::DeleteToTrashHint), "Va a la papelera de reciclaje — puedes recuperarlo allí.");
-        assert_eq!(t(Lang::En, Key::DeleteToTrashHint), "Goes to the recycle bin — recoverable there.");
-    }
-
-    /// Contagem com plural do motor: singular e plural saem das formas do
-    /// catálogo (`@plural {n} item|{n} items`), não de um rótulo fixo.
-    #[test]
-    fn contagem_de_itens_tem_plural() {
-        let um = t_items(Lang::Pt, 1);
-        assert!(um.contains("item") && !um.contains("itens"), "singular pt: {um}");
-        let sete = t_items(Lang::Pt, 7);
-        assert!(sete.contains("itens"), "plural pt: {sete}");
-        // InglêS: as formas da fonte, com o número preenchido.
-        assert_eq!(t_items(Lang::En, 1), "1 item");
-        assert_eq!(t_items(Lang::En, 7), "7 items");
-        // Espanhol pega a linha `@plural` do catálogo es.
-        assert!(t_items(Lang::Es, 7).contains("elementos"), "plural es: {}", t_items(Lang::Es, 7));
-    }
-
-    /// As chaves novas (erros do fsops + hovers) saem do TSV nos 2 catálogos —
-    /// se uma linha caísse na validação do craft-i18n, o teste veria o inglês.
-    #[test]
-    fn erros_e_hovers_traduzidos() {
-        assert_eq!(t(Lang::Pt, Key::FsErrEmptyName), "nome vazio");
-        assert_eq!(t(Lang::Es, Key::FsErrEmptyName), "nombre vacío");
-        // A contrabarra é `\\)` no TSV (escape do catálogo) e `\` na tela.
-        assert_eq!(t(Lang::Pt, Key::FsErrSeparator), "o nome não pode ter separador de pasta (/ ou \\)");
-        assert_eq!(t(Lang::Pt, Key::FsErrDotDot), "o nome não pode ter \"..\"");
-        assert_eq!(t(Lang::Pt, Key::FsErrExists), "já existe um item chamado ");
-        assert_eq!(t(Lang::Es, Key::FsErrExists), "ya existe un elemento llamado ");
-        assert_eq!(t(Lang::Pt, Key::FsErrCrossVolume), "mover entre discos ainda não existe neste app — copie por fora se precisar");
-        assert_eq!(t(Lang::Pt, Key::FsErrCancelled), "exclusão cancelada");
-        assert_eq!(t(Lang::Pt, Key::FsErrNoGio), "gio (trash) não encontrado — instale gvfs");
-        assert_eq!(t(Lang::Pt, Key::FsErrRename), "renomear");
-        assert_eq!(t(Lang::Es, Key::FsErrMove), "mover");
-        assert_eq!(t(Lang::Pt, Key::FsErrCreate), "criar pasta");
-        assert_eq!(t(Lang::Pt, Key::FsErrUndo), "desfazer");
-        assert_eq!(t(Lang::Pt, Key::FsErrTrash), "lixeira");
-        assert_eq!(t(Lang::Pt, Key::FsErrNoParent), "arquivo sem pasta-pai");
-        assert_eq!(t(Lang::Es, Key::FsErrNoName), "el archivo no tiene nombre");
+    fn hovers_do_viewer_traduzidos() {
         assert_eq!(t(Lang::Pt, Key::RotateHint), "girar 90° ([ e ] também giram)");
         assert_eq!(t(Lang::Es, Key::RotateHint), "girar 90° ([ y ] también giran)");
         assert_eq!(t(Lang::Pt, Key::ExportCleanHint), "re-encoda sem EXIF — salva nome.lab.png ao lado");
         assert_eq!(t(Lang::Pt, Key::CenterHint), "centralizar (C)");
-        assert_eq!(t(Lang::Es, Key::GalleryHint), "navegación por carpetas (Esc vuelve a la foto)");
+        // Estado vazio (boot sem arquivo) e painel EXIF continuam traduzidos.
+        assert_eq!(t(Lang::Pt, Key::PickFolder), "abra uma pasta pra navegar");
+        assert_eq!(t(Lang::Es, Key::OpenFolder), "Abrir carpeta");
+        assert_eq!(t(Lang::Pt, Key::NoExif), "sem EXIF");
         // Fonte única (item 7): as duplicatas herdadas do lab-keys não voltam.
         assert_eq!(t(Lang::En, Key::ImportReportTitle), "Import report");
         assert_eq!(t(Lang::En, Key::SaveAttachment), "Save attachment");

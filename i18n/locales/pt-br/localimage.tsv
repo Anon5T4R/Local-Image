@@ -116,7 +116,6 @@
 	Delete forever	Excluir de vez
 	deleted forever	excluído de vez
 	Close	Fechar
-	Folders	Pastas
 	Folder	Pasta
 	New folder	Nova pasta
 	Rename folder	Renomear pasta
@@ -143,32 +142,9 @@
 	Check for updates	Verificar atualizações
 	Export clean	Exportar limpa
 	video — opened in the system player	vídeo — aberto no player do sistema
-	Gallery	Galeria
-	no photos or videos here	sem fotos ou vídeos aqui
-	video	vídeo
-	Rename	Renomear
-	Move to…	Mover para…
-	Undo	Desfazer
-	Goes to the recycle bin — recoverable there.	Vai para a lixeira — dá para recuperar lá.
 	no EXIF	sem EXIF
 	no image	sem imagem
 	open a folder to browse	abra uma pasta pra navegar
-	empty name	nome vazio
-	the name cannot contain a path separator (/ or \\)	o nome não pode ter separador de pasta (/ ou \\)
-	the name cannot contain ".."	o nome não pode ter ".."
-	an item with this name already exists: 	já existe um item chamado 
-	moving between drives is not supported yet — copy the file manually	mover entre discos ainda não existe neste app — copie por fora se precisar
-	deletion cancelled	exclusão cancelada
-	gio (trash) not found — install gvfs	gio (trash) não encontrado — instale gvfs
-	rename	renomear
-	move	mover
-	create folder	criar pasta
-	undo	desfazer
-	recycle bin	lixeira
-	file has no parent folder	arquivo sem pasta-pai
-	file has no name	arquivo sem nome
 	rotate 90° ([ and ] also rotate)	girar 90° ([ e ] também giram)
 	re-encodes without EXIF — saves nome.lab.png next to the original	re-encoda sem EXIF — salva nome.lab.png ao lado
 	center (C)	centralizar (C)
-	browse folders (Esc returns to the photo)	navegação por pastas (Esc volta pra foto)
-@plural	{n} item|{n} items	{n} item|{n} itens

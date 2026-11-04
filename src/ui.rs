@@ -8,8 +8,7 @@ const FIELD_MARGIN: egui::Margin = egui::Margin::symmetric(10, 6);
 /// Altura externa mínima de um campo de uma linha.
 const FIELD_MIN_HEIGHT: f32 = 30.0;
 
-/// Cores derivadas do tema vigente (nada fixo: o lab tem 5 paletas). Visível
-/// pro `main.rs` porque a grade da galeria desenha o cartão do tile à mão.
+/// Cores derivadas do tema vigente (nada fixo: o lab tem 5 paletas).
 #[derive(Clone, Copy)]
 pub(crate) struct Skin {
     /// Fundo do cartão do diálogo (o "sunken" da paleta).
@@ -34,9 +33,8 @@ impl Skin {
     fn from_visuals(v: &egui::Visuals) -> Self {
         let text = v.override_text_color.unwrap_or(v.widgets.noninteractive.fg_stroke.color);
         // Accent SÓLIDO (theme.rs publica em `selection.stroke`): o
-        // `selection.bg_fill` é a lavagem 35% de seleção — usálo aqui deixava
-        // o anel de seleção dos tiles quase invisível no tema claro e o texto
-        // dos pills primários sem contraste.
+        // `selection.bg_fill` é a lavagem 35% de seleção — usá-lo aqui deixava
+        // o texto dos pills primários sem contraste no tema claro.
         let accent = v.selection.stroke.color;
         Self {
             card: v.extreme_bg_color,
@@ -101,9 +99,10 @@ pub(crate) fn pill(ui: &mut egui::Ui, label: &str, primary: bool) -> egui::Respo
     }
 }
 
-/// Pill de ação destrutiva (vermelho fixo: legível nos dois temas) — o
-/// Confirmar da exclusão da galeria (a ação pode remover o arquivo da pasta,
-/// via lixeira).
+/// Pill de ação destrutiva (vermelho fixo: legível nos dois temas). O
+/// local-image não tem ação destrutiva — o kit vem completo do lab-keys pra
+/// manter as cópias alinhadas.
+#[allow(dead_code)]
 pub(crate) fn pill_danger(ui: &mut egui::Ui, label: &str) -> egui::Response {
     pill_colored(ui, label, egui::Color32::from_rgb(0xC0, 0x3A, 0x3A), egui::Color32::WHITE, false)
 }
@@ -149,10 +148,15 @@ pub(crate) fn ghost(ui: &mut egui::Ui, label: &str) -> egui::Response {
 /// [`ghost`] com tinta própria (o ★ favorito usa o accent quando ativo).
 fn ghost_ink(ui: &mut egui::Ui, label: &str, ink: egui::Color32) -> egui::Response {
     let skin = Skin::of(ui);
+    let enabled = ui.is_enabled();
+    // Desabilitado: tinta apagada. O egui não reporta hover em widget
+    // desabilitado, então o ghost não "acende" sozinho — mas sem o apagado
+    // ele ficaria igual ao habilitado.
+    let ink = if enabled { ink } else { ink.gamma_multiply(0.45) };
     let font = egui::TextStyle::Button.resolve(ui.style());
     let galley = ui.painter().layout_no_wrap(label.to_owned(), font, ink);
     let (rect, resp) = ui.allocate_exact_size(egui::vec2(galley.size().x + 14.0, 24.0), egui::Sense::click());
-    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), label));
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, enabled, label));
     if resp.hovered() {
         ui.painter().rect_filled(rect, egui::CornerRadius::same(6), skin.hover);
     }

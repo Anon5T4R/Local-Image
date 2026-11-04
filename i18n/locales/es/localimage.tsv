@@ -116,7 +116,6 @@
 	Delete forever	Eliminar para siempre
 	deleted forever	eliminado para siempre
 	Close	Cerrar
-	Folders	Carpetas
 	Folder	Carpeta
 	New folder	Nueva carpeta
 	Rename folder	Renombrar carpeta
@@ -143,32 +142,9 @@
 	Check for updates	Buscar actualizaciones
 	Export clean	Exportar limpio
 	video — opened in the system player	vídeo — abierto en el reproductor del sistema
-	Gallery	Galería
-	no photos or videos here	sin fotos ni vídeos aquí
-	video	vídeo
-	Rename	Renombrar
-	Move to…	Mover a…
-	Undo	Deshacer
-	Goes to the recycle bin — recoverable there.	Va a la papelera de reciclaje — puedes recuperarlo allí.
 	no EXIF	sin EXIF
 	no image	sin imagen
 	open a folder to browse	abre una carpeta para explorar
-	empty name	nombre vacío
-	the name cannot contain a path separator (/ or \\)	el nombre no puede tener separador de carpeta (/ o \\)
-	the name cannot contain ".."	el nombre no puede contener ".."
-	an item with this name already exists: 	ya existe un elemento llamado 
-	moving between drives is not supported yet — copy the file manually	mover entre discos aún no existe en esta app — copia el archivo por fuera si lo necesitas
-	deletion cancelled	eliminación cancelada
-	gio (trash) not found — install gvfs	no se encontró gio (trash) — instala gvfs
-	rename	renombrar
-	move	mover
-	create folder	crear carpeta
-	undo	deshacer
-	recycle bin	papelera
-	file has no parent folder	el archivo no tiene carpeta padre
-	file has no name	el archivo no tiene nombre
 	rotate 90° ([ and ] also rotate)	girar 90° ([ y ] también giran)
 	re-encodes without EXIF — saves nome.lab.png next to the original	recodifica sin EXIF — guarda nome.lab.png al lado
 	center (C)	centrar (C)
-	browse folders (Esc returns to the photo)	navegación por carpetas (Esc vuelve a la foto)
-@plural	{n} item|{n} items	{n} elemento|{n} elementos

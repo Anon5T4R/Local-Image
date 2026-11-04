@@ -24,7 +24,7 @@ winit = { path = "libs/winit/" }
 
 [package]
 name = "local-image"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2021"
 license = "GPL-3.0-or-later"
 publish = false
@@ -50,6 +50,12 @@ kamadak-exif = "0.6"
 craft-update = { path = "libs/craft-libs/crates/update", features = ["egui"] }
 
 [target.'cfg(windows)'.dependencies]
+# Seletor NATIVO de pasta do estado vazio (padrão da suíte: keys/player têm o
+# rfd exatamente aqui). `default-features = false` = sem XDG portal; e fora do
+# Windows o crate nem entra: em Linux o build aborta sem um backend
+# ("choose at least one backend: gtk3 or xdg-portal") e ligar o portal
+# engordaria o AppImage — lá o caminho da pasta continua digitado.
+rfd = { version = "0.17", default-features = false }
 # Abrir a página da release ("Download" do prompt do updater) — mesmo caminho
 # do local-keys (ShellExecuteW, sem dep extra de shell). 0.62 = a mesma
 # versão que wgpu/gpu-allocator já puxam: única instância de `windows` no
