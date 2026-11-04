@@ -372,6 +372,37 @@ fn displayed_size(tex: &egui::TextureHandle, rot: u32) -> egui::Vec2 {
     }
 }
 
+/// Quanto da imagem (em px de tela) fica sempre visível por eixo: o pan
+/// pode levar a imagem pro canto, nunca pra fora ("arrastar às cegas").
+const MIN_VISIBLE: f32 = 48.0;
+
+/// Limita o pan do viewer: imagem menor que o canvas num eixo → centrada
+/// nesse eixo (arrastar ali não tinha função); maior → no máximo
+/// (tamanho − MIN_VISIBLE) fora de cada lado. Eixo de canvas menor que
+/// 2×MIN_VISIBLE também centraliza — clamp com min>max entraria em pânico.
+fn clamp_pan(rect: egui::Rect, size: egui::Vec2, pan: &mut egui::Vec2) {
+    pan.x = clamp_axis(rect.width(), size.x, pan.x);
+    pan.y = clamp_axis(rect.height(), size.y, pan.y);
+}
+
+/// Regra de um eixo: centraliza quando o clamp não tem espaço válido
+/// (imagem menor que o canvas ou canvas anão), senão aperta nos limites.
+fn clamp_axis(rect_len: f32, size_len: f32, pan: f32) -> f32 {
+    if size_len <= rect_len {
+        // Cabe inteira: centrada — pan ali só deslocaria pra fora.
+        (rect_len - size_len) / 2.0
+    } else {
+        let min = MIN_VISIBLE - size_len;
+        let max = rect_len - MIN_VISIBLE;
+        // Canvas anão (< 2×MIN_VISIBLE) inverte min/max: clamp pânica.
+        if min < max {
+            pan.clamp(min, max)
+        } else {
+            (rect_len - size_len) / 2.0
+        }
+    }
+}
+
 /// Pinta a textura em `dest` girada em quartos de volta horário — mesh
 /// com os cantos do UV permutados (`painter.image` só mapeia rect→rect,
 /// rotação de 90° não é expressável assim).
@@ -893,6 +924,13 @@ impl eframe::App for ImageApp {
                     self.center_pending = false;
                 }
 
+                // Pan limitado: a imagem nunca some do canvas (mesma regra
+                // do editor do Utilities, com guard pra canvas anão — clamp
+                // com min>max pânica). Imagem menor que o canvas: centrada.
+                if !self.fit {
+                    clamp_pan(rect, size * base_scale * self.zoom, &mut self.pan);
+                }
+
                 // Base pós-interações: se uma transição fit→manual aconteceu
                 // ACIMA, o draw deste frame tem que usar a base nova (1.0)
                 // senão escala dupla por um frame (flash).
@@ -986,5 +1024,59 @@ impl eframe::App for ImageApp {
         if self.rx.is_some() || self.decode_rx.is_some() {
             ctx.request_repaint_after(std::time::Duration::from_millis(150));
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn rect(w: f32, h: f32) -> egui::Rect {
+        egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(w, h))
+    }
+
+    fn clamp(r: egui::Rect, size: egui::Vec2, pan: egui::Vec2) -> egui::Vec2 {
+        let mut p = pan;
+        clamp_pan(r, size, &mut p);
+        p
+    }
+
+    #[test]
+    fn imagem_maior_pode_ir_pro_canto_mas_deixa_48px_visiveis() {
+        // Canvas 800×600, imagem 2000×1000: limites x ∈ [48−2000, 800−48].
+        let p = clamp(rect(800.0, 600.0), egui::vec2(2000.0, 1000.0), egui::vec2(-5000.0, 5000.0));
+        assert_eq!(p, egui::vec2(48.0 - 2000.0, 600.0 - 48.0));
+    }
+
+    #[test]
+    fn pan_dentro_dos_limites_nao_muda() {
+        let p = clamp(rect(800.0, 600.0), egui::vec2(2000.0, 1000.0), egui::vec2(-300.0, 50.0));
+        assert_eq!(p, egui::vec2(-300.0, 50.0));
+    }
+
+    #[test]
+    fn imagem_menor_que_canvas_fica_centrada_por_eixo() {
+        // Eixo x menor (400<800): centrado. Eixo y maior (900>600): clamp
+        // normal — pan 456 está dentro de [48−900, 600−48] e sobrevive.
+        let p = clamp(rect(800.0, 600.0), egui::vec2(400.0, 900.0), egui::vec2(-123.0, 456.0));
+        assert_eq!(p, egui::vec2((800.0 - 400.0) / 2.0, 456.0));
+    }
+
+    #[test]
+    fn canvas_anao_nao_panica_e_centraliza() {
+        // Eixo com menos de 2×MIN_VISIBLE (96px): min>max — antes do guard,
+        // f32::clamp entraria em pânico aqui. No eixo y, pan extremo é
+        // apertado no limite (−952 = 48 − 1000: 48px visíveis na base).
+        let p = clamp(rect(70.0, 600.0), egui::vec2(5.0, 1000.0), egui::vec2(0.0, -9999.0));
+        assert_eq!(p, egui::vec2((70.0 - 5.0) / 2.0, 48.0 - 1000.0));
+    }
+
+    #[test]
+    fn pan_centrado_de_imagem_maior_esta_dentro_dos_limites() {
+        // O C centraliza mantendo o zoom: valor tem que sobreviver ao clamp.
+        let r = rect(800.0, 600.0);
+        let size = egui::vec2(2000.0, 1000.0);
+        let centrado = egui::vec2((800.0 - 2000.0) / 2.0, (600.0 - 1000.0) / 2.0);
+        assert_eq!(clamp(r, size, centrado), centrado);
     }
 }
