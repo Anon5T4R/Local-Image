@@ -23,10 +23,7 @@ fn main() {
 
 /// (arquivo, prefixo da linha de versão)
 fn version_slots() -> Vec<(String, String)> {
-    vec![
-        ("Cargo.toml".into(), "version = ".into()),
-        ("lab-ui/Cargo.toml".into(), "version = ".into()),
-    ]
+    vec![("Cargo.toml".into(), "version = ".into()), ("lab-ui/Cargo.toml".into(), "version = ".into())]
 }
 
 fn read_version(path: &str, prefix: &str) -> String {
