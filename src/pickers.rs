@@ -53,8 +53,7 @@ impl Pickers {
             .name("file-picker".into())
             .spawn(move || {
                 if let Some(handle) = pollster::block_on(dialog.pick_folder()) {
-                    done.lock().unwrap_or_else(PoisonError::into_inner)
-                        .push(Picked::Folder(handle.path().to_path_buf()));
+                    done.lock().unwrap_or_else(PoisonError::into_inner).push(Picked::Folder(handle.path().to_path_buf()));
                 }
                 showing.store(false, Ordering::SeqCst);
                 ctx.request_repaint(); // acorda o frame que consome a resposta
