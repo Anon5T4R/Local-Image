@@ -28,7 +28,7 @@ rustls-rustcrypto = { path = "libs/rustls-rustcrypto" }
 
 [package]
 name = "local-image"
-version = "0.5.1"
+version = "0.5.2"
 edition = "2021"
 license = "GPL-3.0-or-later"
 publish = false
