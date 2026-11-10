@@ -58,14 +58,15 @@ kamadak-exif = "0.6"
 # self-update (Windows: MSI/portable; Linux: AppImage/tar.gz). O `egui` liga o
 # prompt e o Updater de UI.
 craft-update = { path = "libs/craft-libs/crates/update", features = ["egui"] }
+# Seletor NATIVO de arquivo/pasta. Defaults do rfd 0.17 no Linux = backend
+# XDG portal (Rust puro via zbus, fallback Zenity) — mesmo padrão dos apps
+# maduros (local-pdf e irmãos); chamadas via AsyncFileDialog + thread worker
+# (src/pickers.rs, molde do local-pdf). Windows segue o diálogo nativo.
+rfd = "0.17"
+# Espera o seletor nativo fora da thread de UI (já no grafo via wgpu).
+pollster = "1.0"
 
 [target.'cfg(windows)'.dependencies]
-# Seletor NATIVO de pasta do estado vazio (padrão da suíte: keys/player têm o
-# rfd exatamente aqui). `default-features = false` = sem XDG portal; e fora do
-# Windows o crate nem entra: em Linux o build aborta sem um backend
-# ("choose at least one backend: gtk3 or xdg-portal") e ligar o portal
-# engordaria o AppImage — lá o caminho da pasta continua digitado.
-rfd = { version = "0.17", default-features = false }
 # Abrir a página da release ("Download" do prompt do updater) — mesmo caminho
 # do local-keys (ShellExecuteW, sem dep extra de shell). 0.62 = a mesma
 # versão que wgpu/gpu-allocator já puxam: única instância de `windows` no

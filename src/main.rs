@@ -19,6 +19,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod img;
+mod pickers;
 mod ui;
 
 use std::path::{Path, PathBuf};
@@ -34,10 +35,10 @@ use ui::{begin_dialog, ghost, line, modal_frame, pill};
 const APP_ID: &str = "local-image";
 const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// O seletor NATIVO de pasta existe neste build? O `rfd` é dependência só do
-/// Windows (fora dele o crate nem compila sem gtk/xdg-portal — ver
-/// `Cargo.toml`); no Linux o caminho continua sendo digitado no rodapé.
-const NATIVE_PICKER: bool = cfg!(windows);
+/// O seletor NATIVO de pasta existe neste build? Desde a mudança pro rfd
+/// global (padrão dos apps maduros) o diálogo nativo existe em todo SO:
+/// Windows nativo, Linux via portal XDG (ver `src/pickers.rs`).
+const NATIVE_PICKER: bool = true;
 
 /// Ícone da janela (além do .exe cunhado no build.rs — Windows pega os
 /// dois; AppImage/desktop só vendo com o PNG do pacote).
@@ -138,26 +139,6 @@ fn open_path(path: &Path) -> Result<(), String> {
     shell_open(&path.to_string_lossy())
 }
 
-/// Abre o seletor NATIVO de pasta (rfd), começando na pasta atual quando há
-/// uma. Síncrono: o modal do SO bloqueia o frame enquanto está aberto — é o
-/// comportamento esperado de um diálogo nativo. `None` = usuário cancelou (ou
-/// build sem o rfd: no Linux o caminho é digitado) — silêncio, sem status.
-fn pick_folder(current: &str) -> Option<PathBuf> {
-    #[cfg(windows)]
-    {
-        let mut dialog = rfd::FileDialog::new();
-        if !current.is_empty() {
-            dialog = dialog.set_directory(current);
-        }
-        dialog.pick_folder()
-    }
-    #[cfg(not(windows))]
-    {
-        let _ = current;
-        None
-    }
-}
-
 /// Trabalho pesado fora da UI (thread de decode).
 enum Job {
     List(String),
@@ -213,6 +194,8 @@ struct ImageApp {
     rx: Option<Receiver<Done>>,
     /// Canal dedicado do Decode — não pode ser sobrescrito pelo Exif.
     decode_rx: Option<Receiver<Done>>,
+    /// Seletor nativo de pasta (async: resposta chega num frame posterior).
+    pickers: pickers::Pickers,
     status: String,
     // viewport do zoom
     zoom: f32,
@@ -257,6 +240,7 @@ impl ImageApp {
             exif: None,
             rx: None,
             decode_rx: None,
+            pickers: pickers::Pickers::default(),
             status: String::new(),
             zoom: 1.0,
             pan: egui::Vec2::ZERO,
@@ -471,6 +455,16 @@ impl eframe::App for ImageApp {
                 self.updater.dismiss_status();
             }
             _ => {}
+        }
+        // Seletor nativo (src/pickers.rs): consome a resposta que chegou da
+        // thread (ela acorda este frame com request_repaint).
+        for picked in self.pickers.take() {
+            match picked {
+                pickers::Picked::Folder(dir) => {
+                    self.dir = dir.to_string_lossy().into_owned();
+                    self.open_dir();
+                }
+            }
         }
         // Se abriu com um arquivo via args, dispara o scan da pasta agora.
         if let Some(ref p) = self.initial_file {
@@ -814,14 +808,11 @@ impl eframe::App for ImageApp {
                 }
                 child.add_space(10.0);
                 child.label(egui::RichText::new(i18n::t(self.cfg.lang, Key::PickFolder)).weak());
-                // Pasta escolhida no seletor NATIVO: aplicada depois do
-                // desenho (durante ele o diálogo bloquearia o frame); `None` =
-                // o usuário cancelou: silêncio.
+                // Seletor NATIVO (async — src/pickers.rs): a pasta escolhida
+                // é aplicada no drain do frame seguinte; cancelamento =
+                // silêncio, sem status.
                 if pick {
-                    if let Some(chosen) = pick_folder(&self.dir) {
-                        self.dir = chosen.to_string_lossy().into_owned();
-                        self.open_dir();
-                    }
+                    self.pickers.ask_folder(ctx, Some(&self.dir));
                 } else if area.clicked() {
                     self.chrome = true;
                 }
