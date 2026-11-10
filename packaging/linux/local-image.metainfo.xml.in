@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- AppStream metadata (software centres, Flathub). Template: package.sh substitutes @VERSION@
+     and @DATE@ from Cargo.toml and the build date. -->
+<component type="desktop-application">
+  <!-- rDNS no AppStream (exigência do appstreamcli); a identidade do app — WM class, .desktop,
+       ícone, nomes de asset do updater — continua flat "local-image" (launchable abaixo). -->
+  <id>com.local.localimage</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT OR Apache-2.0</project_license>
+  <name>Local Image</name>
+  <summary>View and browse images; export without EXIF</summary>
+  <developer id="com.local.localimage">
+    <name>Local Image contributors</name>
+  </developer>
+  <description>
+    <p>
+      Local Image is a fast, open-source image viewer: folders of photos with instant zoom and pan,
+      an EXIF panel, and privacy export that re-encodes without metadata. 100% local and offline.
+    </p>
+  </description>
+  <launchable type="desktop-id">local-image.desktop</launchable>
+  <icon type="stock">local-image</icon>
+  <!-- Only url types known to appstream 0.15 (Ubuntu 22.04, where CI validates): no vcs-browser. -->
+  <url type="homepage">https://github.com/Anon5T4R/Local-Image</url>
+  <url type="bugtracker">https://github.com/Anon5T4R/Local-Image/issues</url>
+  <url type="help">https://github.com/Anon5T4R/Local-Image</url>
+  <url type="contact">https://github.com/Anon5T4R/Local-Image/issues</url>
+  <categories>
+    <category>Graphics</category>
+    <category>Viewer</category>
+  </categories>
+  <keywords>
+    <keyword>image</keyword>
+    <keyword>viewer</keyword>
+    <keyword>photo</keyword>
+    <keyword>gallery</keyword>
+    <keyword>exif</keyword>
+  </keywords>
+  <branding>
+    <color type="primary" scheme_preference="light">#b9c7f5</color>
+    <color type="primary" scheme_preference="dark">#2b47b5</color>
+  </branding>
+  <requires>
+    <display_length compare="ge">360</display_length>
+  </requires>
+  <supports>
+    <control>keyboard</control>
+    <control>pointing</control>
+  </supports>
+  <!-- Image formats the viewer opens, as in the desktop entry's MimeType=. -->
+  <provides>
+    <binary>local-image</binary>
+    <mediatype>image/png</mediatype>
+    <mediatype>image/jpeg</mediatype>
+    <mediatype>image/gif</mediatype>
+    <mediatype>image/webp</mediatype>
+    <mediatype>image/bmp</mediatype>
+    <mediatype>image/tiff</mediatype>
+    <mediatype>image/avif</mediatype>
+    <mediatype>image/svg+xml</mediatype>
+  </provides>
+  <releases>
+    <release version="@VERSION@" date="@DATE@"/>
+  </releases>
+</component>

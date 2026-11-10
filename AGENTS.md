@@ -11,17 +11,22 @@ Rust puro + egui, app single-crate. Sem conta, sem telemetria, sem dependência 
   Tudo vem do crates.io (pinado pelo lock).
 - **Commits:** português, sem Co-Authored-By.
 - **Release:** tag `vX.Y.Z` → o Actions builda Windows (MSI + portable zip, WiX v5 via
-  `packaging/windows/package.ps1`) e Linux (AppImage + tar.gz), valida o PKGBUILD do Arch e
-  publica. Mínimo local. O `installer.nsi` ficou no repo por ora, mas o CI não o usa mais.
+  `packaging/windows/package.ps1`) e Linux (`packaging/linux/package.sh`, molde do local-office:
+  AppImage + tar.gz FHS **com `install.sh` na raiz** + deb + rpm), valida o PKGBUILD real
+  (`packaging/arch/`, container Arch + `makepkg --printsrcinfo`) e publica. Mínimo local.
+  O `installer.nsi` ficou no repo por ora, mas o CI não o usa mais.
 - **Disco local:** nunca deixe `target/` para trás — `cargo clean` após uso local;
   builds pesados são do CI.
 
 ## Estrutura
-- `src/` — app single-crate
-- `icons/` — ícones do app
+- `src/` — app single-crate (`src/pickers.rs`: seletor nativo async, molde do local-pdf)
+- `icons/` — ícones do app (master PNG 1024)
+- `assets/app-icon/hicolor/` — árvore de ícones commitada (gerada por `packaging/icons.sh`)
 - `packaging/windows/package.ps1` + `local-image.wxs` — MSI per-machine (WiX v5, Program
   Files\Local Image) e portable zip; `installer.nsi` é legado, sem uso no CI
-- `packaging/linux/local-image.desktop` — desktop entry
+- `packaging/linux/` — `package.sh` (AppImage + tar FHS + install.sh + deb/rpm),
+  `local-image.desktop`, `local-image.metainfo.xml.in`, `nfpm.yaml`, `postinst.sh`
+- `packaging/arch/PKGBUILD` — pacote Arch a partir do tarball FHS da release
 
 ## Build
 ```
@@ -32,6 +37,6 @@ cargo xtask check                          # confere as 3 versões sincronizadas
 ```
 
 
-## Upstream e a pasta `C:\Dev\storytold`
+## Upstream e a pasta `<root>/storytold`
 
-Menções a `storytold/*` em código, comentários, docs e atribuições (NOTICE/ATTRIBUTION) são referência histórica e obrigação de licença. **Nada** é lido de `C:\Dev\storytold` em build, teste ou release: tudo vem do próprio repo (crates.io pinado pelo lock + `libs/`/`vendor/` vendored + CI que busca craft-fonts/craft-i18n do GitHub). Essa pasta existe somente como referência local para a skill `sync-upstream`.
+Menções a `storytold/*` em código, comentários, docs e atribuições (NOTICE/ATTRIBUTION) são referência histórica e obrigação de licença. **Nada** é lido de `<root>/storytold` (Windows `C:\Dev\storytold` · Arch `~/Dev/dev-arch/storytold`) em build, teste ou release: tudo vem do próprio repo (crates.io pinado pelo lock + `libs/`/`vendor/` vendored + CI que busca craft-fonts/craft-i18n do GitHub). Essa pasta existe somente como referência local para a skill `sync-upstream`.

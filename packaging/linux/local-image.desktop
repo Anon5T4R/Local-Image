@@ -4,8 +4,12 @@ Name=Local Image
 GenericName=Image Viewer
 Keywords=image;viewer;photo;gallery;pictures;local;
 Exec=local-image
+TryExec=local-image
 Icon=local-image
-Categories=Graphics;
+Categories=Graphics;Viewer;
 Comment=Visualizador de imagens 100% local e offline — export sem EXIF
 Terminal=false
+# O runner nativo não completa o handshake de startup-notification (igual ao local-paint).
+StartupNotify=false
 StartupWMClass=local-image
+MimeType=image/png;image/jpeg;image/gif;image/webp;image/bmp;image/tiff;image/avif;image/x-icon;image/x-tga;image/qoi;image/x-exr;image/vnd.radiance;image/svg+xml;
