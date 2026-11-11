@@ -746,20 +746,12 @@ fn signed_like(app: &App, reference: &Path, file: &Path) -> Result<(), String> {
         // A signed copy updates only through its own publisher.
         Ok(ours) => {
             let theirs = publisher(file).map_err(|e| format!("{} isn't signed ({e})", file.display()))?;
-            if ours == theirs {
-                Ok(())
-            } else {
-                Err(format!("{} isn't signed by {}'s publisher", file.display(), app.name))
-            }
+            if ours == theirs { Ok(()) } else { Err(format!("{} isn't signed by {}'s publisher", file.display(), app.name)) }
         }
         // An unsigned copy (this suite's releases): the release's checksum already verified the
         // download, so an unsigned file is this channel's own update.
         Err(_) => match publisher(file) {
-            Ok(_) => Err(format!(
-                "{} is signed, but this copy of {} isn't, so it looks like another channel's file",
-                file.display(),
-                app.name
-            )),
+            Ok(_) => Err(format!("{} is signed, but this copy of {} isn't, so it looks like another channel's file", file.display(), app.name)),
             Err(_) => Ok(()),
         },
     }
