@@ -1,10 +1,9 @@
-# PKGBUILD do Local Image para Arch (uso pessoal do João; não publicado no AUR).
+# PKGBUILD do local-image para Arch (uso pessoal do João; não publicado no AUR).
 # Instala a árvore FHS (bin/ + share/) do tarball da release — o mesmo artefato
-# que o package.sh gera —, então pacman -Ql lista os arquivos e pacman -R remove
-# tudo. O sha256 fica SKIP porque o hash só existe após a release existir; confie
-# no transport (HTTPS) ou preencha manualmente com `updpkgsums`.
+# que o package.sh gera. O sha256 fica SKIP no repo (o hash só existe após a
+# release); o job arch do CI substitui pelo real ao construir o pacote.
 #
-#   makepkg -si
+#   makepkg -si   (local, com o tarball da release ao lado)
 
 pkgname=local-image
 pkgver=0.5.3
@@ -15,7 +14,8 @@ url='https://github.com/Anon5T4R/Local-Image'
 license=('MIT OR Apache-2.0')
 depends=(glibc gcc-libs libxcb libxrandr libxi libxcursor libxkbcommon)
 optdepends=('xdg-desktop-portal: seletor nativo de arquivos (GNOME/KDE já trazem)')
-source=("local-image-$pkgver-linux-x86_64.tar.gz::https://github.com/Anon5T4R/Local-Image/releases/download/v$pkgver/local-image-$pkgver-linux-x86_64.tar.gz")
+options=(!debug)
+source=("local-image-$pkgver-linux-x86_64.tar.gz")
 sha256sums=('SKIP')
 
 package() {
