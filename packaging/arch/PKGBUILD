@@ -7,7 +7,7 @@
 #   makepkg -si
 
 pkgname=local-image
-pkgver=0.5.2
+pkgver=0.5.3
 pkgrel=1
 pkgdesc='Visualizador de imagens 100% local e offline — export sem EXIF'
 arch=(x86_64)
