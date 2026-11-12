@@ -5,13 +5,15 @@
 #
 #   makepkg -si   (local, com o tarball da release ao lado)
 
-pkgname=local-image
+pkgname=ai.storyteller.local-image
 pkgver=0.5.6
 pkgrel=1
 pkgdesc='Visualizador de imagens 100% local e offline — export sem EXIF'
 arch=(x86_64)
 url='https://github.com/Anon5T4R/Local-Image'
 license=('MIT OR Apache-2.0')
+provides=('local-image')
+conflicts=('local-image')
 depends=(glibc gcc-libs libxcb libxrandr libxi libxcursor libxkbcommon)
 optdepends=('xdg-desktop-portal: seletor nativo de arquivos (GNOME/KDE já trazem)')
 options=(!debug)
