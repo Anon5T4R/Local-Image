@@ -39,7 +39,7 @@ fn set_version(path: &str, prefix: &str, v: &str) {
     for line in text.lines() {
         if !done && line.trim_start().starts_with(prefix) {
             let indent = line.len() - line.trim_start().len();
-            let quote = if line.trim_start()[prefix.len()..].trim_start().starts_with('"') { "\"" } else { "\"" };
+            let quote = "\"";
             out.push_str(&line[..indent]);
             out.push_str(prefix);
             out.push_str(quote);
