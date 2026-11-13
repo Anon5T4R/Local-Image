@@ -1,0 +1,2362 @@
+########## folders.rs ##########
+warning: in the working copy of 'C:\Dev\underworld-apps\local-paint\libs\craft-libs\crates\update\src\folders.rs', LF will be replaced by CRLF the next time Git touches it
+diff --git "a/C:\\Dev\\underworld-apps\\local-image\\libs\\craft-libs\\crates\\update\\src\\folders.rs" "b/C:\\Dev\\underworld-apps\\local-paint\\libs\\craft-libs\\crates\\update\\src\\folders.rs"
+index a144a3a..0fc6da8 100644
+--- "a/C:\\Dev\\underworld-apps\\local-image\\libs\\craft-libs\\crates\\update\\src\\folders.rs"
++++ "b/C:\\Dev\\underworld-apps\\local-paint\\libs\\craft-libs\\crates\\update\\src\\folders.rs"
+@@ -40,6 +40,20 @@ pub fn data_local_dir() -> Option<PathBuf> {
+     }
+ }
+ 
++/// The host's per-user data folder, also from inside a Flatpak, where `XDG_DATA_HOME` points into
++/// the sandbox (`~/.var/app/<id>/data`). Files other programs on the host must find go here.
++pub fn host_data_local_dir() -> Option<PathBuf> {
++    pick_host_data_dir(std::path::Path::new("/.flatpak-info").exists(), absolute_env("HOST_XDG_DATA_HOME"), home_dir(), data_local_dir())
++}
++
++/// [`host_data_local_dir`] with its inputs passed in, so every CI OS can test the Flatpak case.
++fn pick_host_data_dir(in_flatpak: bool, host_xdg: Option<PathBuf>, home: Option<PathBuf>, local: Option<PathBuf>) -> Option<PathBuf> {
++    if in_flatpak {
++        return host_xdg.or_else(|| home.map(|h| h.join(".local").join("share")));
++    }
++    local
++}
++
+ /// Where per-user caches live on this machine.
+ pub fn cache_dir() -> Option<PathBuf> {
+     if cfg!(target_os = "windows") {
+@@ -62,4 +76,15 @@ mod tests {
+             assert!(cache_dir().is_some_and(|p| p.is_absolute()));
+         }
+     }
++
++    #[test]
++    fn inside_a_flatpak_the_hosts_data_folder_is_used() {
++        let home = Some(PathBuf::from("/home/u"));
++        let sandboxed = Some(PathBuf::from("/home/u/.var/app/ai.storyteller.artcraft-launcher/data"));
++        let host = Some(PathBuf::from("/srv/u/data"));
++        assert_eq!(pick_host_data_dir(true, host.clone(), home.clone(), sandboxed.clone()), host);
++        assert_eq!(pick_host_data_dir(true, None, home.clone(), sandboxed.clone()), Some(PathBuf::from("/home/u/.local/share")));
++        assert_eq!(pick_host_data_dir(false, host, home, sandboxed.clone()), sandboxed);
++        assert_eq!(pick_host_data_dir(true, None, None, None), None);
++    }
+ }
+########## dialog.rs ##########
+warning: in the working copy of 'C:\Dev\underworld-apps\local-paint\libs\craft-libs\crates\update\src\dialog.rs', LF will be replaced by CRLF the next time Git touches it
+diff --git "a/C:\\Dev\\underworld-apps\\local-image\\libs\\craft-libs\\crates\\update\\src\\dialog.rs" "b/C:\\Dev\\underworld-apps\\local-paint\\libs\\craft-libs\\crates\\update\\src\\dialog.rs"
+index d6bf1dd..15e9ab9 100644
+--- "a/C:\\Dev\\underworld-apps\\local-image\\libs\\craft-libs\\crates\\update\\src\\dialog.rs"
++++ "b/C:\\Dev\\underworld-apps\\local-paint\\libs\\craft-libs\\crates\\update\\src\\dialog.rs"
+@@ -4,6 +4,7 @@ use egui::{Align, Align2, Color32, Layout, RichText, Vec2};
+ 
+ use crate::app::App;
+ use crate::release::Release;
++use crate::updater::Status;
+ 
+ /// What the user chose in the startup update prompt.
+ #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+@@ -45,23 +46,14 @@ impl StartupPrompt {
+ 
+         let mut response = StartupPromptResponse::Pending;
+ 
+-        // Modal dimmed background overlay; it senses clicks so they don't reach widgets underneath.
+-        let screen_rect = ctx.content_rect();
+-        egui::Area::new(egui::Id::unique("craft_update_backdrop")).order(egui::Order::Middle).fixed_pos(screen_rect.min).show(ctx, |ui| {
+-            let (rect, _) = ui.allocate_exact_size(screen_rect.size(), egui::Sense::click_and_drag());
+-            ui.painter().rect_filled(rect, 0.0, Color32::from_black_alpha(150));
+-        });
++        backdrop(ctx);
+ 
+         if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape)) {
+             response = StartupPromptResponse::Later;
+         }
+ 
+-        let is_dark = ctx.theme() == egui::Theme::Dark;
+-        let card_bg = if is_dark { Color32::from_rgb(26, 26, 28) } else { Color32::from_rgb(255, 255, 255) };
+-        let border_color = if is_dark { Color32::from_rgb(52, 52, 56) } else { Color32::from_rgb(215, 215, 220) };
+-        let text_primary = if is_dark { Color32::from_rgb(245, 245, 248) } else { Color32::from_rgb(20, 20, 25) };
+-        let text_muted = if is_dark { Color32::from_rgb(150, 150, 160) } else { Color32::from_rgb(105, 105, 115) };
+-        let accent_color = Color32::from_rgb(52, 120, 246);
++        let pal = Palette::new(ctx, self.app);
++        let Palette { is_dark, card_bg, border_color, text_primary, text_muted, fill, on_fill } = pal;
+ 
+         egui::Area::new(egui::Id::unique("craft_update.startup_prompt"))
+             .anchor(Align2::CENTER_CENTER, Vec2::ZERO)
+@@ -74,43 +66,11 @@ impl StartupPrompt {
+                     .inner_margin(egui::Margin::symmetric(20, 18))
+                     .show(ui, |ui| {
+                         ui.set_width(400.0);
+-                        ui.spacing_mut().item_spacing = Vec2::new(8.0, 6.0);
+-
+-                        // Header row: App badge + title + close
+-                        ui.horizontal(|ui| {
+-                            let (badge_rect, _) = ui.allocate_exact_size(Vec2::new(34.0, 34.0), egui::Sense::hover());
+-                            ui.painter().rect_filled(badge_rect, egui::CornerRadius::ZERO, accent_color);
+-                            let initial = self.app.name.chars().next().map(|c| c.to_string()).unwrap_or_else(|| "A".to_string());
+-                            ui.painter().text(badge_rect.center(), Align2::CENTER_CENTER, initial, egui::FontId::monospace(18.0), Color32::WHITE);
+-
+-                            ui.add_space(4.0);
+-
+-                            ui.vertical(|ui| {
+-                                ui.spacing_mut().item_spacing.y = 2.0;
+-                                ui.horizontal(|ui| {
+-                                    ui.label(RichText::new(self.app.name).size(15.0).strong().color(text_primary));
+-                                    ui.label(RichText::new("UPDATE").size(10.0).monospace().color(accent_color));
+-                                });
+-                                // ASCII only, like the rest of the card: an app whose fonts lack a glyph may panic
+-                                // instead of drawing a box, and this prompt shows up unasked.
+-                                let version_pill = format!("v{} to {}", self.running_version, self.release.version_label());
+-                                ui.label(RichText::new(version_pill).size(11.0).monospace().color(text_muted));
+-                            });
+-
+-                            ui.with_layout(Layout::right_to_left(Align::Min), |ui| {
+-                                // Two strokes, not a "Ô£ò" glyph: none of the bundled faces has U+2715.
+-                                let (rect, close) = ui.allocate_exact_size(Vec2::splat(18.0), egui::Sense::click());
+-                                close.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, "Close"));
+-                                let color = if close.hovered() { text_primary } else { text_muted };
+-                                let (center, reach) = (rect.center(), 4.5);
+-                                let stroke = egui::Stroke::new(1.5, color);
+-                                ui.painter().line_segment([center + Vec2::new(-reach, -reach), center + Vec2::new(reach, reach)], stroke);
+-                                ui.painter().line_segment([center + Vec2::new(-reach, reach), center + Vec2::new(reach, -reach)], stroke);
+-                                if close.on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
+-                                    response = StartupPromptResponse::Later;
+-                                }
+-                            });
+-                        });
++                        style_card(ui, &pal);
++                        let version_line = format!("v{} to {}", self.running_version, self.release.version_label());
++                        if card_header(ui, self.app, &pal, true, &version_line) {
++                            response = StartupPromptResponse::Later;
++                        }
+ 
+                         ui.add_space(8.0);
+ 
+@@ -145,18 +105,29 @@ impl StartupPrompt {
+                         ui.painter().hline(hairline_rect.x_range(), hairline_rect.top(), egui::Stroke::new(1.0, border_color));
+                         ui.add_space(8.0);
+ 
+-                        // Footer actions
+-                        ui.horizontal(|ui| {
+-                            let what_new = egui::Hyperlink::from_label_and_url(
+-                                RichText::new("What's new").size(11.5).color(accent_color),
+-                                &self.release.html_url,
+-                            );
+-                            ui.add(what_new);
++                        // Footer actions: a row as tall as the buttons, everything centred in it, so the link
++                        // lines up with them (a plain horizontal row puts it at the top).
++                        ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
++                            ui.set_min_height(26.0);
++                            // Body text, so it reads on any card; the underline carries the accent.
++                            let link =
++                                ui.add(egui::Label::new(RichText::new("What's new").size(11.5).color(text_primary)).sense(egui::Sense::click()));
++                            link.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Link, true, "What's new"));
++                            let y = link.rect.bottom() - 0.5;
++                            ui.painter()
++                                .line_segment([egui::pos2(link.rect.left(), y), egui::pos2(link.rect.right(), y)], egui::Stroke::new(1.0, fill));
++                            // Keyboard focus (Tab, then Enter or Space opens it): the buttons' 2 px ring.
++                            if link.has_focus() {
++                                let ring = egui::Stroke::new(2.0, text_primary);
++                                ui.painter().rect_stroke(link.rect.expand(2.0), egui::CornerRadius::ZERO, ring, egui::StrokeKind::Outside);
++                            }
++                            if link.on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
++                                ui.ctx().open_url(egui::OpenUrl::new_tab(&self.release.html_url));
++                            }
+ 
+                             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                                 if self.is_installing {
+                                     let dismiss_btn = egui::Button::new(RichText::new("DISMISS").size(10.5).monospace().color(text_muted))
+-                                        .stroke(egui::Stroke::new(1.0, border_color))
+                                         .corner_radius(egui::CornerRadius::ZERO)
+                                         .min_size(Vec2::new(72.0, 26.0));
+                                     if ui.add(dismiss_btn).clicked() {
+@@ -164,28 +135,25 @@ impl StartupPrompt {
+                                     }
+                                 } else {
+                                     if self.is_self_updating {
+-                                        let update_btn = egui::Button::new(
+-                                            RichText::new("UPDATE AND RESTART").size(10.5).strong().monospace().color(Color32::WHITE),
+-                                        )
+-                                        .fill(accent_color)
+-                                        .corner_radius(egui::CornerRadius::ZERO)
+-                                        .min_size(Vec2::new(140.0, 26.0));
++                                        let update_btn =
++                                            egui::Button::new(RichText::new("UPDATE AND RESTART").size(10.5).strong().monospace().color(on_fill))
++                                                .fill(fill)
++                                                .corner_radius(egui::CornerRadius::ZERO)
++                                                .min_size(Vec2::new(140.0, 26.0));
+                                         if ui.add(update_btn).clicked() {
+                                             response = StartupPromptResponse::UpdateAndRestart;
+                                         }
+                                     } else {
+-                                        let dl_btn =
+-                                            egui::Button::new(RichText::new("DOWNLOAD").size(10.5).strong().monospace().color(Color32::WHITE))
+-                                                .fill(accent_color)
+-                                                .corner_radius(egui::CornerRadius::ZERO)
+-                                                .min_size(Vec2::new(90.0, 26.0));
++                                        let dl_btn = egui::Button::new(RichText::new("DOWNLOAD").size(10.5).strong().monospace().color(on_fill))
++                                            .fill(fill)
++                                            .corner_radius(egui::CornerRadius::ZERO)
++                                            .min_size(Vec2::new(90.0, 26.0));
+                                         if ui.add(dl_btn).clicked() {
+                                             response = StartupPromptResponse::Download;
+                                         }
+                                     }
+ 
+                                     let later_btn = egui::Button::new(RichText::new("LATER").size(10.5).monospace().color(text_primary))
+-                                        .stroke(egui::Stroke::new(1.0, border_color))
+                                         .corner_radius(egui::CornerRadius::ZERO)
+                                         .min_size(Vec2::new(65.0, 26.0));
+                                     if ui.add(later_btn).clicked() {
+@@ -205,6 +173,301 @@ impl StartupPrompt {
+     }
+ }
+ 
++/// The card's colours for the current theme and app.
++#[derive(Clone, Copy)]
++struct Palette {
++    is_dark: bool,
++    card_bg: Color32,
++    border_color: Color32,
++    text_primary: Color32,
++    text_muted: Color32,
++    /// The app's accent.
++    fill: Color32,
++    /// Text on `fill`.
++    on_fill: Color32,
++}
++
++impl Palette {
++    fn new(ctx: &egui::Context, app: &App) -> Self {
++        let is_dark = ctx.theme() == egui::Theme::Dark;
++        let fill = app.accent.map_or(DEFAULT_ACCENT, |[r, g, b]| Color32::from_rgb(r, g, b));
++        Self {
++            is_dark,
++            card_bg: if is_dark { Color32::from_rgb(26, 26, 28) } else { Color32::from_rgb(255, 255, 255) },
++            border_color: if is_dark { Color32::from_rgb(52, 52, 56) } else { Color32::from_rgb(215, 215, 220) },
++            text_primary: if is_dark { Color32::from_rgb(245, 245, 248) } else { Color32::from_rgb(20, 20, 25) },
++            text_muted: if is_dark { Color32::from_rgb(150, 150, 160) } else { Color32::from_rgb(105, 105, 115) },
++            fill,
++            on_fill: ink_on(fill),
++        }
++    }
++}
++
++/// The dimmed modal backdrop; it senses clicks so they don't reach widgets underneath. True when
++/// it was clicked (a click outside the card).
++fn backdrop(ctx: &egui::Context) -> bool {
++    let screen_rect = ctx.content_rect();
++    egui::Area::new(egui::Id::unique("craft_update_backdrop"))
++        .order(egui::Order::Middle)
++        .fixed_pos(screen_rect.min)
++        .show(ctx, |ui| {
++            let (rect, response) = ui.allocate_exact_size(screen_rect.size(), egui::Sense::click_and_drag());
++            ui.painter().rect_filled(rect, 0.0, Color32::from_black_alpha(150));
++            response.clicked()
++        })
++        .inner
++}
++
++/// The host app's widget style isn't ours to rely on (a light theme's hover can be dark under
++/// this card's dark text), so the card's buttons get their own states.
++fn style_card(ui: &mut egui::Ui, pal: &Palette) {
++    let widgets = &mut ui.visuals_mut().widgets;
++    let (hover_bg, press_bg) = button_states(pal.is_dark);
++    for (state, bg) in [(&mut widgets.inactive, pal.card_bg), (&mut widgets.hovered, hover_bg), (&mut widgets.active, press_bg)] {
++        state.weak_bg_fill = bg;
++        state.bg_fill = bg;
++        state.bg_stroke = egui::Stroke::new(1.0, pal.border_color);
++    }
++    // egui draws a focused button (and a pressed one) in the active state: its border is
++    // the focus ring, in the body text colour so it shows on the card and around a fill.
++    widgets.active.bg_stroke = egui::Stroke::new(2.0, pal.text_primary);
++    ui.spacing_mut().item_spacing = Vec2::new(8.0, 6.0);
++}
++
++/// Header row: app icon (or its initial in a badge), name, developer, `second_line` and a close
++/// button. `update_pill` adds the "UPDATE" chip. True when the close button was clicked.
++fn card_header(ui: &mut egui::Ui, app: &App, pal: &Palette, update_pill: bool, second_line: &str) -> bool {
++    let Palette { text_primary, text_muted, fill, on_fill, .. } = *pal;
++    let mut closed = false;
++    ui.horizontal(|ui| {
++        let (badge_rect, _) = ui.allocate_exact_size(Vec2::new(34.0, 34.0), egui::Sense::hover());
++        if let Some(icon) = icon_texture(ui.ctx(), app) {
++            let uv = egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0));
++            ui.painter().image(icon.id(), badge_rect, uv, Color32::WHITE);
++        } else {
++            ui.painter().rect_filled(badge_rect, egui::CornerRadius::ZERO, fill);
++            let initial = app.name.chars().next().map(|c| c.to_string()).unwrap_or_else(|| "A".to_string());
++            ui.painter().text(badge_rect.center(), Align2::CENTER_CENTER, initial, egui::FontId::monospace(18.0), on_fill);
++        }
++
++        ui.add_space(4.0);
++
++        ui.vertical(|ui| {
++            ui.spacing_mut().item_spacing.y = 2.0;
++            ui.horizontal(|ui| {
++                ui.label(RichText::new(app.name).size(15.0).strong().color(text_primary));
++                ui.label(RichText::new(format!("by {}", app.developer)).size(11.5).color(text_muted));
++                if update_pill {
++                    // A chip, not accent-coloured text: small accent text misses WCAG's 4.5:1 for
++                    // several apps (PdfCraft's red on the dark card, amber on the light one).
++                    egui::Frame::new().fill(fill).inner_margin(egui::Margin::symmetric(4, 1)).show(ui, |ui| {
++                        ui.label(RichText::new("UPDATE").size(10.0).monospace().color(on_fill));
++                    });
++                }
++            });
++            // ASCII only, like the rest of the card: an app whose fonts lack a glyph may panic
++            // instead of drawing a box, and the startup prompt shows up unasked.
++            ui.label(RichText::new(second_line).size(11.0).monospace().color(text_muted));
++        });
++
++        ui.with_layout(Layout::right_to_left(Align::Min), |ui| {
++            // Two strokes, not a "Ô£ò" glyph: none of the bundled faces has U+2715.
++            let (rect, close) = ui.allocate_exact_size(Vec2::splat(18.0), egui::Sense::click());
++            close.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, "Close"));
++            let color = if close.hovered() { text_primary } else { text_muted };
++            let (center, reach) = (rect.center(), 4.5);
++            let stroke = egui::Stroke::new(1.5, color);
++            ui.painter().line_segment([center + Vec2::new(-reach, -reach), center + Vec2::new(reach, reach)], stroke);
++            ui.painter().line_segment([center + Vec2::new(-reach, reach), center + Vec2::new(reach, -reach)], stroke);
++            if close.on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
++                closed = true;
++            }
++        });
++    });
++    closed
++}
++
++/// What the user chose in the result dialog of a manual update check.
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++pub enum CheckResultResponse {
++    /// Dialog is still open and waiting for user input.
++    None,
++    /// OK, the close button, Esc or a click outside: the app stops showing the dialog.
++    Close,
++    /// Failed state only: the app starts another requested check.
++    CheckAgain,
++}
++
++/// The result of a manual "Check for Updates", in the same card as [`StartupPrompt`]: a spinner
++/// while checking, "newest version" when up to date, the error and a retry when it failed.
++///
++/// An app shows it while a requested check is in view: open it when the user starts a check
++/// (`Updater::check_now`), call [`show`](Self::show) every frame with `updater.status()` until it
++/// returns [`CheckResultResponse::Close`], then stop calling it. On
++/// [`CheckResultResponse::CheckAgain`] start another requested check and keep showing it. An
++/// available update goes to [`StartupPrompt`] instead; the app closes this dialog when the prompt opens.
++#[derive(Clone, Copy, Debug)]
++pub struct CheckResultDialog {
++    app: &'static App,
++    running_version: &'static str,
++}
++
++impl CheckResultDialog {
++    /// A dialog for `app`, which is running `running_version`.
++    pub fn new(app: &'static App, running_version: &'static str) -> Self {
++        Self { app, running_version }
++    }
++
++    /// Draws the modal card for `status` and returns what the user chose. [`Status::Idle`] draws
++    /// nothing and returns [`CheckResultResponse::None`].
++    pub fn show(&self, ctx: &egui::Context, status: &Status) -> CheckResultResponse {
++        if matches!(status, Status::Idle) {
++            return CheckResultResponse::None;
++        }
++        let mut response = CheckResultResponse::None;
++        if backdrop(ctx) {
++            response = CheckResultResponse::Close;
++        }
++        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape)) {
++            response = CheckResultResponse::Close;
++        }
++
++        let pal = Palette::new(ctx, self.app);
++        let Palette { card_bg, border_color, text_primary, text_muted, fill, on_fill, .. } = pal;
++        egui::Area::new(egui::Id::unique("craft_update.check_result")).anchor(Align2::CENTER_CENTER, Vec2::ZERO).order(egui::Order::Foreground).show(
++            ctx,
++            |ui| {
++                egui::Frame::new()
++                    .fill(card_bg)
++                    .stroke(egui::Stroke::new(1.0, border_color))
++                    .corner_radius(egui::CornerRadius::ZERO)
++                    .inner_margin(egui::Margin::symmetric(20, 18))
++                    .show(ui, |ui| {
++                        ui.set_width(400.0);
++                        style_card(ui, &pal);
++                        if card_header(ui, self.app, &pal, false, &format!("v{}", self.running_version)) {
++                            response = CheckResultResponse::Close;
++                        }
++                        ui.add_space(8.0);
++
++                        match status {
++                            Status::Checking => {
++                                ui.horizontal(|ui| {
++                                    ui.spinner();
++                                    ui.label(RichText::new("Checking for updatesÔÇª").size(12.5).color(text_primary));
++                                });
++                            }
++                            Status::UpToDate => {
++                                let text = format!("{} {} is the newest version available.", self.app.name, self.running_version);
++                                ui.label(RichText::new(text).size(12.5).color(text_muted));
++                            }
++                            Status::Failed(error) => {
++                                let alert_color = Color32::from_rgb(225, 95, 30);
++                                ui.label(RichText::new("Could not check for updates.").size(12.5).strong().color(alert_color));
++                                ui.add(egui::Label::new(RichText::new(error).size(12.0).color(text_muted)).selectable(true));
++                                ui.label(
++                                    RichText::new(format!("All releases are listed at {}", self.app.releases_url())).size(11.5).color(text_muted),
++                                );
++                            }
++                            Status::Idle => {}
++                        }
++
++                        if !matches!(status, Status::Checking) {
++                            ui.add_space(10.0);
++                            let (hairline_rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 1.0), egui::Sense::hover());
++                            ui.painter().hline(hairline_rect.x_range(), hairline_rect.top(), egui::Stroke::new(1.0, border_color));
++                            ui.add_space(8.0);
++                            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
++                                ui.set_min_height(26.0);
++                                let ok = egui::Button::new(RichText::new("OK").size(10.5).strong().monospace().color(on_fill))
++                                    .fill(fill)
++                                    .corner_radius(egui::CornerRadius::ZERO)
++                                    .min_size(Vec2::new(65.0, 26.0));
++                                if ui.add(ok).clicked() {
++                                    response = CheckResultResponse::Close;
++                                }
++                                if matches!(status, Status::Failed(_)) {
++                                    let again = egui::Button::new(RichText::new("CHECK AGAIN").size(10.5).monospace().color(text_primary))
++                                        .corner_radius(egui::CornerRadius::ZERO)
++                                        .min_size(Vec2::new(100.0, 26.0));
++                                    if ui.add(again).clicked() {
++                                        response = CheckResultResponse::CheckAgain;
++                                    }
++                                }
++                            });
++                        }
++                    });
++            },
++        );
++        response
++    }
++}
++
++/// Backgrounds of an unfilled button (LATER, DISMISS) when hovered and when pressed: a step from
++/// the card, so its text keeps the contrast it has at rest.
++fn button_states(is_dark: bool) -> (Color32, Color32) {
++    if is_dark {
++        (Color32::from_rgb(44, 44, 48), Color32::from_rgb(58, 58, 64))
++    } else {
++        (Color32::from_rgb(236, 236, 241), Color32::from_rgb(222, 222, 230))
++    }
++}
++
++/// The prompt's blue for an app that names no accent ([`App::accent`]).
++const DEFAULT_ACCENT: Color32 = Color32::from_rgb(52, 120, 246);
++
++/// WCAG relative luminance of `c`: 0 for black to 1 for white.
++fn luminance(c: Color32) -> f32 {
++    let channel = |v: u8| {
++        let v = f32::from(v) / 255.0;
++        if v <= 0.04045 { v / 12.92 } else { ((v + 0.055) / 1.055).powf(2.4) }
++    };
++    0.2126 * channel(c.r()) + 0.7152 * channel(c.g()) + 0.0722 * channel(c.b())
++}
++
++/// WCAG contrast ratio of two colours: 1 (none) to 21 (black on white).
++fn contrast(a: Color32, b: Color32) -> f32 {
++    let (a, b) = (luminance(a), luminance(b));
++    (a.max(b) + 0.05) / (a.min(b) + 0.05)
++}
++
++/// Text for a label on `fill`: white or black, whichever contrasts more. Every Craft app accent
++/// then reaches WCAG AA's 4.5:1 for the prompt's small labels (5:1 at the least).
++fn ink_on(fill: Color32) -> Color32 {
++    if contrast(fill, Color32::WHITE) >= contrast(fill, Color32::BLACK) { Color32::WHITE } else { Color32::BLACK }
++}
++
++/// The largest icon the prompt decodes, a side; app icons are 128 px.
++const ICON_MAX_SIDE: u32 = 1024;
++
++/// `app`'s icon as a texture, decoded once per context and app; `None` when the app has none or
++/// it doesn't decode, and the prompt shows the app's initial instead.
++fn icon_texture(ctx: &egui::Context, app: &App) -> Option<egui::TextureHandle> {
++    let png = app.icon_png?;
++    let id = egui::Id::unique(("craft_update.icon", app.id));
++    if let Some(cached) = ctx.data(|d| d.get_temp::<Option<egui::TextureHandle>>(id)) {
++        return cached;
++    }
++    // The renderer's own limit too: load_texture panics (debug) on a texture larger than it takes.
++    let max_side = u32::try_from(ctx.input(|i| i.max_texture_side)).unwrap_or(u32::MAX).min(ICON_MAX_SIDE);
++    let texture =
++        decode_icon(png, max_side).map(|image| ctx.load_texture(format!("craft_update.icon.{}", app.id), image, egui::TextureOptions::LINEAR));
++    ctx.data_mut(|d| d.insert_temp(id, texture.clone()));
++    texture
++}
++
++/// A PNG as an RGBA image, or `None` when it doesn't decode or is over `max_side` a side.
++fn decode_icon(png: &[u8], max_side: u32) -> Option<egui::ColorImage> {
++    let mut reader = image::ImageReader::with_format(std::io::Cursor::new(png), image::ImageFormat::Png);
++    let mut limits = image::Limits::default();
++    limits.max_image_width = Some(max_side);
++    limits.max_image_height = Some(max_side);
++    reader.limits(limits);
++    let rgba = reader.decode().ok()?.to_rgba8();
++    let size = [usize::try_from(rgba.width()).ok()?, usize::try_from(rgba.height()).ok()?];
++    Some(egui::ColorImage::from_rgba_unmultiplied(size, rgba.as_raw()))
++}
++
+ #[cfg(test)]
+ mod tests {
+     use super::*;
+@@ -290,6 +553,243 @@ mod tests {
+         fills
+     }
+ 
++    /// A `width` x `height` PNG of one opaque color.
++    fn png(width: u32, height: u32, color: [u8; 4]) -> Vec<u8> {
++        let mut out = std::io::Cursor::new(Vec::new());
++        image::RgbaImage::from_pixel(width, height, image::Rgba(color)).write_to(&mut out, image::ImageFormat::Png).unwrap();
++        out.into_inner()
++    }
++
++    /// The textured meshes painted this frame (the app icon; text is drawn as `Shape::Text`).
++    fn textured_meshes(output: &FullOutput) -> Vec<egui::TextureId> {
++        fn collect(shape: &egui::Shape, out: &mut Vec<egui::TextureId>) {
++            match shape {
++                egui::Shape::Vec(shapes) => shapes.iter().for_each(|s| collect(s, out)),
++                egui::Shape::Mesh(mesh) if mesh.texture_id != egui::TextureId::default() => out.push(mesh.texture_id),
++                _ => {}
++            }
++        }
++        let mut ids = Vec::new();
++        for clipped in &output.shapes {
++            collect(&clipped.shape, &mut ids);
++        }
++        ids
++    }
++
++    #[test]
++    fn icons_decode_and_bad_ones_are_refused() {
++        let image = decode_icon(&png(3, 2, [10, 20, 30, 255]), ICON_MAX_SIDE).unwrap();
++        assert_eq!(image.size, [3, 2]);
++        assert_eq!(image.pixels[0], Color32::from_rgb(10, 20, 30));
++        assert!(decode_icon(b"\x89PNG\r\n\x1a\nnot really", ICON_MAX_SIDE).is_none(), "a corrupt PNG must not decode");
++        assert!(decode_icon(&png(ICON_MAX_SIDE + 1, 1, [0, 0, 0, 255]), ICON_MAX_SIDE).is_none(), "an oversized icon must not decode");
++        // A renderer that takes smaller textures than the icon: no texture, so the initial is shown.
++        assert!(decode_icon(&png(3, 2, [0, 0, 0, 255]), 2).is_none(), "an icon over the renderer's limit must not decode");
++    }
++
++    #[test]
++    fn prompt_shows_the_app_icon_or_else_its_initial() {
++        static ICON_APP: std::sync::OnceLock<App> = std::sync::OnceLock::new();
++        let icon_png: &'static [u8] = Box::leak(png(128, 128, [200, 40, 40, 255]).into_boxed_slice());
++        let with_icon: &'static App = ICON_APP.get_or_init(|| App { icon_png: Some(icon_png), ..PHOTOCRAFT });
++        let ctx = dark_context();
++        let mut prompt = StartupPrompt { app: with_icon, ..prompt_for(false) };
++        frame(&ctx, &mut prompt, Vec::new());
++        let (_, output) = frame(&ctx, &mut prompt, Vec::new());
++        assert_eq!(textured_meshes(&output).len(), 1, "the app icon is drawn");
++        let badge = rect_fills(&output).iter().any(|(rect, fill)| *fill == DEFAULT_ACCENT && rect.width() == 34.0);
++        assert!(!badge, "no letter badge beside the icon");
++        assert!(!painted_text(&output).lines().any(|l| l == "P"), "no initial beside the icon");
++
++        // No icon (or one that won't decode): the initial in the accent badge, as before.
++        let ctx = dark_context();
++        let mut prompt = prompt_for(false);
++        frame(&ctx, &mut prompt, Vec::new());
++        let (_, output) = frame(&ctx, &mut prompt, Vec::new());
++        assert!(textured_meshes(&output).is_empty());
++        assert!(painted_text(&output).lines().any(|l| l == "P"), "the initial stands in for a missing icon");
++    }
++
++    #[test]
++    fn an_apps_accent_fills_the_buttons_with_readable_text() {
++        // An amber accent: its buttons take it, with black text (white is under 3:1 on it).
++        static AMBER: std::sync::OnceLock<App> = std::sync::OnceLock::new();
++        let amber: &'static App = AMBER.get_or_init(|| App { accent: Some([0xf2, 0xa5, 0x16]), ..PHOTOCRAFT });
++        let ctx = dark_context();
++        let mut prompt = StartupPrompt { app: amber, ..prompt_for(false) };
++        frame(&ctx, &mut prompt, Vec::new());
++        let (_, output) = frame(&ctx, &mut prompt, Vec::new());
++        let fill = Color32::from_rgb(0xf2, 0xa5, 0x16);
++        assert!(rect_fills(&output).iter().any(|(_, f)| *f == fill), "the accent fills the button and badge");
++        assert!(!rect_fills(&output).iter().any(|(_, f)| *f == DEFAULT_ACCENT), "no default blue beside an accent");
++        assert_eq!(ink_on(fill), Color32::BLACK);
++        // Whichever of white and black contrasts more: black on the default blue, white on
++        // WordCraft's deeper blue and PdfCraft's red.
++        assert_eq!(ink_on(DEFAULT_ACCENT), Color32::BLACK);
++        assert_eq!(ink_on(Color32::from_rgb(0x3f, 0x5f, 0xe0)), Color32::WHITE);
++        assert_eq!(ink_on(Color32::from_rgb(0xb7, 0x02, 0x28)), Color32::WHITE);
++        // The accent underlines "What's new" (whose text is the body colour).
++        let underlined = line_strokes(&output).contains(&fill);
++        assert!(underlined, "the link's underline takes the accent");
++        assert!((contrast(Color32::BLACK, Color32::WHITE) - 21.0).abs() < 0.01);
++    }
++
++    #[test]
++    fn hovering_later_uses_the_prompts_own_background_not_the_hosts() {
++        // A host whose light theme hovers in black: LATER's dark text would vanish on it.
++        let ctx = Context::default();
++        ctx.set_theme(egui::ThemePreference::Light);
++        ctx.global_style_mut(|style| {
++            style.animation_time = 0.0;
++            style.visuals.widgets.hovered.weak_bg_fill = Color32::BLACK;
++            style.visuals.widgets.hovered.bg_fill = Color32::BLACK;
++        });
++        let mut prompt = prompt_for(false);
++        frame(&ctx, &mut prompt, Vec::new());
++        let (_, output) = frame(&ctx, &mut prompt, Vec::new());
++        let later = text_pos(&output, "LATER").expect("LATER is painted");
++        frame(&ctx, &mut prompt, vec![Event::PointerMoved(later)]);
++        let (_, hovered) = frame(&ctx, &mut prompt, vec![Event::PointerMoved(later)]);
++        let fills = rect_fills(&hovered);
++        assert!(fills.iter().any(|(r, f)| *f == button_states(false).0 && r.contains(later)), "LATER hovers in the prompt's grey: {fills:?}");
++        assert!(!fills.iter().any(|(r, f)| *f == Color32::BLACK && r.contains(later)), "not in the host's black");
++    }
++
++    /// The strokes of the rectangles painted this frame, with each rectangle.
++    fn rect_strokes(output: &FullOutput) -> Vec<(Rect, egui::Stroke)> {
++        fn collect(shape: &egui::Shape, out: &mut Vec<(Rect, egui::Stroke)>) {
++            match shape {
++                egui::Shape::Vec(shapes) => shapes.iter().for_each(|s| collect(s, out)),
++                egui::Shape::Rect(rect) => out.push((rect.rect, rect.stroke)),
++                _ => {}
++            }
++        }
++        let mut strokes = Vec::new();
++        for clipped in &output.shapes {
++            collect(&clipped.shape, &mut strokes);
++        }
++        strokes
++    }
++
++    #[test]
++    fn a_pressed_or_focused_button_shows_a_ring() {
++        // Focus and a press both draw the active state; its 2 px ring must show on LATER (whose
++        // border used to be fixed) and on the filled DOWNLOAD.
++        for label in ["LATER", "DOWNLOAD"] {
++            let ctx = dark_context();
++            let mut prompt = prompt_for(false);
++            frame(&ctx, &mut prompt, Vec::new());
++            let (_, output) = frame(&ctx, &mut prompt, Vec::new());
++            let at = text_pos(&output, label).expect("the button is painted");
++            let down = Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE };
++            frame(&ctx, &mut prompt, vec![Event::PointerMoved(at)]);
++            let (_, pressed) = frame(&ctx, &mut prompt, vec![down]);
++            let ring = rect_strokes(&pressed).iter().any(|(r, s)| r.contains(at) && s.width == 2.0 && s.color == Color32::from_rgb(245, 245, 248));
++            assert!(ring, "{label} shows the focus ring while pressed");
++        }
++    }
++
++    #[test]
++    fn a_focused_whats_new_link_shows_a_ring() {
++        let ctx = dark_context();
++        let mut prompt = prompt_for(false);
++        frame(&ctx, &mut prompt, Vec::new());
++        let (_, output) = frame(&ctx, &mut prompt, Vec::new());
++        let link = text_pos(&output, "What's new").expect("the link is painted");
++        let tab = Event::Key { key: Key::Tab, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::NONE };
++        let ringed = (0..8).any(|_| {
++            let (_, out) = frame(&ctx, &mut prompt, vec![tab.clone()]);
++            rect_strokes(&out).iter().any(|(r, s)| r.contains(link) && s.width == 2.0 && s.color == Color32::from_rgb(245, 245, 248))
++        });
++        assert!(ringed, "tabbing to the link shows the focus ring");
++    }
++
++    #[test]
++    fn whats_new_lines_up_with_the_buttons() {
++        let ctx = dark_context();
++        let mut prompt = prompt_for(false);
++        frame(&ctx, &mut prompt, Vec::new());
++        let (_, output) = frame(&ctx, &mut prompt, Vec::new());
++        let link = text_pos(&output, "What's new").expect("the link is painted");
++        let button = text_pos(&output, "DOWNLOAD").expect("the button is painted");
++        assert!((link.y - button.y).abs() <= 1.0, "link centred at {} but the button at {}", link.y, button.y);
++    }
++
++    #[test]
++    fn clicking_download_answers_download() {
++        let ctx = dark_context();
++        let mut prompt = prompt_for(false);
++        frame(&ctx, &mut prompt, Vec::new());
++        let (_, output) = frame(&ctx, &mut prompt, Vec::new());
++        let at = text_pos(&output, "DOWNLOAD").expect("DOWNLOAD is painted");
++        let button = |pressed| Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
++        frame(&ctx, &mut prompt, vec![Event::PointerMoved(at)]);
++        frame(&ctx, &mut prompt, vec![button(true)]);
++        let (response, _) = frame(&ctx, &mut prompt, vec![button(false)]);
++        assert_eq!(response, StartupPromptResponse::Download);
++    }
++
++    /// The colours of the line segments painted this frame.
++    fn line_strokes(output: &FullOutput) -> Vec<Color32> {
++        fn collect(shape: &egui::Shape, out: &mut Vec<Color32>) {
++            match shape {
++                egui::Shape::Vec(shapes) => shapes.iter().for_each(|s| collect(s, out)),
++                egui::Shape::LineSegment { stroke, .. } => out.push(stroke.color),
++                _ => {}
++            }
++        }
++        let mut colors = Vec::new();
++        for clipped in &output.shapes {
++            collect(&clipped.shape, &mut colors);
++        }
++        colors
++    }
++
++    #[test]
++    fn every_craft_accent_reaches_aa_for_its_labels() {
++        // The 13 apps' accents (as ArtCraft Launcher shows them, PdfCraft's new red) and the default.
++        let accents = [
++            0x2f7bf5, 0xe8573f, 0x8b5cf6, 0xf2a516, 0xb70228, 0xe0368f, 0x7bb51c, 0x02da96, 0x3f5fe0, 0x1fa5c9, 0xf07a1e, 0x3ea6e8, 0x1f9d55,
++            0x3478f6,
++        ];
++        for hex in accents {
++            let fill = Color32::from_rgb((hex >> 16) as u8, (hex >> 8) as u8, hex as u8);
++            let ratio = contrast(fill, ink_on(fill));
++            assert!(ratio >= 4.5, "#{hex:06x}: {ratio:.2}:1");
++        }
++    }
++
++    /// Where the frame painted `text` (inside its galley, so a pointer there is over it).
++    fn text_pos(output: &FullOutput, text: &str) -> Option<egui::Pos2> {
++        fn find(shape: &egui::Shape, text: &str) -> Option<egui::Pos2> {
++            match shape {
++                egui::Shape::Vec(shapes) => shapes.iter().find_map(|s| find(s, text)),
++                egui::Shape::Text(t) if t.galley.text() == text => Some(t.pos + t.galley.rect.center().to_vec2()),
++                _ => None,
++            }
++        }
++        output.shapes.iter().find_map(|c| find(&c.shape, text))
++    }
++
++    #[test]
++    fn the_prompt_names_the_developer() {
++        let ctx = dark_context();
++        let mut prompt = prompt_for(false);
++        frame(&ctx, &mut prompt, Vec::new());
++        let (_, output) = frame(&ctx, &mut prompt, Vec::new());
++        assert!(painted_text(&output).lines().any(|l| l == "by Anon5T4R"), "every suite app is Anon5T4R's by default");
++
++        // An app can name its own developer.
++        static OTHER: std::sync::OnceLock<App> = std::sync::OnceLock::new();
++        let other: &'static App = OTHER.get_or_init(|| App { developer: "Someone Else", ..PHOTOCRAFT });
++        let ctx = dark_context();
++        let mut prompt = StartupPrompt { app: other, ..prompt_for(false) };
++        frame(&ctx, &mut prompt, Vec::new());
++        let (_, output) = frame(&ctx, &mut prompt, Vec::new());
++        let painted = painted_text(&output);
++        assert!(painted.lines().any(|l| l == "by Someone Else") && !painted.contains("by Anon5T4R"), "{painted}");
++    }
++
+     #[test]
+     fn creates_startup_prompt_dialog() {
+         let release = Release { version: crate::version::parse("0.2.0"), tag: "v0.2.0".to_string(), ..Release::default() };
+@@ -402,4 +902,40 @@ mod tests {
+         assert!(output.shapes.is_empty(), "closed prompt painted {} shapes", output.shapes.len());
+         assert!(painted_text(&output).is_empty());
+     }
++
++    #[test]
++    fn check_result_paints_each_state_and_escape_closes() {
++        let dialog = CheckResultDialog::new(&PHOTOCRAFT, "0.1.0");
++        let run = |ctx: &Context, status: &Status, events: Vec<Event>| {
++            // The first frame of an area only sizes it; the second paints.
++            let mut frames = [Vec::new(), events].into_iter().map(|events| {
++                let mut response = CheckResultResponse::None;
++                let mut output = ctx.run_ui(RawInput { screen_rect: Some(screen()), events, ..RawInput::default() }, |ui| {
++                    response = dialog.show(ui.ctx(), status);
++                });
++                output.textures_delta.clear();
++                (response, output)
++            });
++            frames.next();
++            frames.next().unwrap()
++        };
++        let ctx = dark_context();
++        let (_, checking) = run(&ctx, &Status::Checking, Vec::new());
++        assert!(painted_text(&checking).contains("Checking for updatesÔÇª"));
++        assert!(!painted_text(&checking).contains("UPDATE"), "no update pill on a result");
++        let (_, up_to_date) = run(&ctx, &Status::UpToDate, Vec::new());
++        let text = painted_text(&up_to_date);
++        assert!(text.contains("PhotoCraft 0.1.0 is the newest version available.") && text.contains("OK"), "{text}");
++        let (response, failed) = run(&ctx, &Status::Failed("no network".into()), Vec::new());
++        let text = painted_text(&failed);
++        for want in ["Could not check for updates.", "no network", "All releases are listed at https://github.com/", "CHECK AGAIN", "OK"] {
++            assert!(text.contains(want), "{want} missing in {text}");
++        }
++        assert_eq!(response, CheckResultResponse::None);
++        let (_, idle) = run(&ctx, &Status::Idle, Vec::new());
++        assert!(painted_text(&idle).is_empty());
++
++        let escape = Event::Key { key: Key::Escape, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::NONE };
++        assert_eq!(run(&dark_context(), &Status::UpToDate, vec![escape]).0, CheckResultResponse::Close);
++    }
+ }
+########## source.rs ##########
+warning: in the working copy of 'C:\Dev\underworld-apps\local-paint\libs\craft-libs\crates\update\src\source.rs', LF will be replaced by CRLF the next time Git touches it
+diff --git "a/C:\\Dev\\underworld-apps\\local-image\\libs\\craft-libs\\crates\\update\\src\\source.rs" "b/C:\\Dev\\underworld-apps\\local-paint\\libs\\craft-libs\\crates\\update\\src\\source.rs"
+index e71e8dc..75a46fd 100644
+--- "a/C:\\Dev\\underworld-apps\\local-image\\libs\\craft-libs\\crates\\update\\src\\source.rs"
++++ "b/C:\\Dev\\underworld-apps\\local-paint\\libs\\craft-libs\\crates\\update\\src\\source.rs"
+@@ -112,7 +112,7 @@ impl GitHubSource {
+                 Ok(Some(found(None)))
+             }
+             Fetched::RateLimited { reset } => {
+-                *self.limited_until.lock().unwrap_or_else(PoisonError::into_inner) = Some(reset.unwrap_or_else(|| crate::now() + 15 * 60));
++                *self.limited_until.lock().unwrap_or_else(PoisonError::into_inner) = Some(retry_at(reset, crate::now()));
+                 Ok(None)
+             }
+         }
+@@ -138,6 +138,14 @@ impl GitHubSource {
+     }
+ }
+ 
++/// GitHub's quota refills within the hour, so a later reset is a bad answer.
++const MAX_LIMIT_WAIT: i64 = 60 * 60;
++
++/// When to ask the API again after a refusal.
++fn retry_at(reset: Option<i64>, now: i64) -> i64 {
++    reset.unwrap_or(now + 15 * 60).min(now + MAX_LIMIT_WAIT)
++}
++
+ impl ReleaseSource for GitHubSource {
+     fn latest(&self, repo: &str, prereleases: bool) -> Answer {
+         let api_error = if self.limited() {
+@@ -196,3 +204,20 @@ impl ReleaseSource for GitHubSource {
+         }
+     }
+ }
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn a_refusal_waits_for_the_reset_github_names() {
++        assert_eq!(retry_at(Some(1_000 + 600), 1_000), 1_600);
++        assert_eq!(retry_at(None, 1_000), 1_000 + 15 * 60);
++    }
++
++    #[test]
++    fn a_reset_past_the_quota_window_cannot_stop_the_api_for_good() {
++        assert_eq!(retry_at(Some(i64::MAX), 1_000), 1_000 + 60 * 60);
++        assert_eq!(retry_at(Some(99_999_999_999), 1_000), 1_000 + 60 * 60);
++    }
++}
+########## updater.rs ##########
+warning: in the working copy of 'C:\Dev\underworld-apps\local-paint\libs\craft-libs\crates\update\src\updater.rs', LF will be replaced by CRLF the next time Git touches it
+diff --git "a/C:\\Dev\\underworld-apps\\local-image\\libs\\craft-libs\\crates\\update\\src\\updater.rs" "b/C:\\Dev\\underworld-apps\\local-paint\\libs\\craft-libs\\crates\\update\\src\\updater.rs"
+index d30e8d3..0a9733f 100644
+--- "a/C:\\Dev\\underworld-apps\\local-image\\libs\\craft-libs\\crates\\update\\src\\updater.rs"
++++ "b/C:\\Dev\\underworld-apps\\local-paint\\libs\\craft-libs\\crates\\update\\src\\updater.rs"
+@@ -2,12 +2,18 @@
+ //! and the self-update worker. An app creates one [`Updater`], calls [`Updater::tick`] and
+ //! [`Updater::show`] each frame, and acts on the [`Action`] it returns, so every app gets the same
+ //! handling of failures, dropped workers, repaints and quitting.
++//!
++//! An app the launcher keeps on another version (see [`crate::pins`]) offers nothing itself: the
++//! check reads the shared choice first, and a requested check reports [`Status::UpToDate`] while
++//! [`Updater::managed`] says why.
+ 
++use std::path::PathBuf;
+ use std::sync::Arc;
+ use std::sync::mpsc::{Receiver, TryRecvError, channel};
+ use std::time::Duration;
+ 
+ use crate::dialog::{StartupPrompt, StartupPromptResponse};
++use crate::pins::{Choice, Pins};
+ use crate::release::Release;
+ use crate::{App, Http, Paths, Platform, Stop, check_for_update, self_update};
+ 
+@@ -55,11 +61,16 @@ pub struct Updater {
+     restart: bool,
+     /// An update is installed and waits for the app to exit; nothing starts a second one.
+     installed: bool,
++    /// The version-choice file to read in place of [`Pins::default_path`] (tests).
++    pins_path: Option<PathBuf>,
++    /// The launcher's choice for this app when it is not stable, as of the last check or offer.
++    managed: Option<Choice>,
+ }
+ 
+ impl Updater {
+     pub fn new(app: &'static App, version: impl Into<String>) -> Self {
+         let version = version.into();
++        let version = self_update::current_version(app, &version).map_or(version, |v| v.to_string());
+         // Desktop integration (Linux): an app launched from outside a package
+         // manager (AppImage anywhere, bare binary) registers its menu entry.
+         // No-op on other platforms; opt out with CRAFT_NO_DESKTOP_INTEGRATION=1.
+@@ -77,6 +88,8 @@ impl Updater {
+             prompt: None,
+             restart: false,
+             installed: false,
++            pins_path: None,
++            managed: None,
+         }
+     }
+ 
+@@ -86,6 +99,37 @@ impl Updater {
+         self
+     }
+ 
++    /// Reads the version choices from `path` instead of the launcher's file (tests).
++    pub fn with_pins_path(mut self, path: impl Into<PathBuf>) -> Self {
++        self.pins_path = Some(path.into());
++        self
++    }
++
++    /// The launcher's choice for this app when it keeps it off stable releases (a pinned version,
++    /// nightlies, or a choice this version cannot read), as of the last check. A window answering
++    /// Help Ôû© Check for Updates can say so instead of "newest version".
++    pub fn managed(&self) -> Option<&Choice> {
++        self.managed.as_ref()
++    }
++
++    /// Reads the launcher's choice for this app; remembers it when it is not stable.
++    fn read_choice(&mut self) -> bool {
++        let pins = match &self.pins_path {
++            Some(path) => Pins::load(path),
++            None => Pins::load_default(),
++        };
++        self.managed = Some(pins.choice(self.app.id)).filter(|c| *c != Choice::Stable);
++        if let Some(choice) = &self.managed {
++            log::info!("{} follows the launcher's choice ({choice:?}); no update offered here", self.app.name);
++            // A prompt opened before the pin would still install the stable release. One that is
++            // installing or finished stays: `tick` reports through it.
++            if self.install.is_none() && !self.installed {
++                self.prompt = None;
++            }
++        }
++        self.managed.is_some()
++    }
++
+     /// The check at start, once. Later calls do nothing.
+     pub fn check_at_start(&mut self, ctx: &egui::Context) {
+         if !std::mem::replace(&mut self.started, true) {
+@@ -102,7 +146,7 @@ impl Updater {
+ 
+     /// Opens the startup prompt for a release the app found itself.
+     pub fn offer(&mut self, release: Release) {
+-        if self.install.is_none() && !self.installed {
++        if self.install.is_none() && !self.installed && !self.read_choice() {
+             self.prompt = Some(StartupPrompt::new(self.app, release, self.version.clone()));
+         }
+     }
+@@ -134,6 +178,11 @@ impl Updater {
+         if self.check.is_some() {
+             return;
+         }
++        // The file is a few bytes, read once per check; the launcher may have changed it since.
++        if self.read_choice() {
++            self.finish_check(Ok(None));
++            return;
++        }
+         let (tx, rx) = channel();
+         let (source, app, version, ctx) = (self.source.clone(), self.app, self.version.clone(), ctx.clone());
+         let spawned = std::thread::Builder::new().name("update-check".into()).spawn(move || {
+@@ -154,6 +203,15 @@ impl Updater {
+ 
+     fn finish_check(&mut self, answer: Checked) {
+         let requested = std::mem::take(&mut self.requested);
++        // The launcher may have pinned or unpinned the app while the check ran: whatever the
++        // answer, an app it manages offers nothing and reports nothing to do.
++        if self.read_choice() {
++            if let Err(e) = &answer {
++                log::info!("{} update check failed ({e}), but the launcher manages its version", self.app.name);
++            }
++            self.status = if requested { Status::UpToDate } else { Status::Idle };
++            return;
++        }
+         match answer {
+             Ok(Some(release)) => {
+                 self.status = Status::Idle;
+@@ -268,6 +326,10 @@ impl Updater {
+     }
+ 
+     fn start_install(&mut self, ctx: &egui::Context) {
++        // The launcher may have pinned the app while the prompt was open; that closes it.
++        if self.install.is_none() && !self.installed && self.read_choice() {
++            return;
++        }
+         let Some(prompt) = &mut self.prompt else { return };
+         if self.installed {
+             prompt.status_message = Some(format!("The update is installed. Close {} to finish; it restarts by itself.", self.app.name));
+@@ -317,12 +379,17 @@ mod tests {
+     use super::*;
+     use crate::suite::PHOTOCRAFT;
+ 
++    /// An updater that never reads the real version-choice file.
+     fn updater(answer: Checked) -> Updater {
+-        Updater::new(&PHOTOCRAFT, "0.1.0").with_source(Arc::new(move || answer.clone()))
++        Updater::new(&PHOTOCRAFT, "0.1.0").with_source(Arc::new(move || answer.clone())).with_pins_path(no_pins())
++    }
++
++    pub(super) fn no_pins() -> PathBuf {
++        std::env::temp_dir().join("craft-update-tests-no-such-dir").join("versions.json")
+     }
+ 
+     /// Ticks until the running check has reported.
+-    fn settle(updater: &mut Updater, ctx: &egui::Context) {
++    pub(super) fn settle(updater: &mut Updater, ctx: &egui::Context) {
+         let deadline = std::time::Instant::now() + Duration::from_secs(10);
+         while updater.check.is_some() && std::time::Instant::now() < deadline {
+             updater.tick(ctx);
+@@ -330,10 +397,58 @@ mod tests {
+         }
+     }
+ 
+-    fn newer() -> Release {
++    pub(super) fn newer() -> Release {
+         Release { tag: "v9.0.0".into(), version: crate::version::parse("9.0.0"), ..Release::default() }
+     }
+ 
++    // Child processes isolate environment overrides from parallel tests without unsafe set_var.
++    #[test]
++    fn pretend_versions_trigger_startup_prompts_for_every_app() {
++        const CHILD: &str = "CRAFT_UPDATE_PRETEND_TEST_APP";
++        if let Ok(id) = std::env::var(CHILD) {
++            let app = crate::suite::by_id(&id).unwrap();
++            let mut u = Updater::new(app, "99.0.0").with_pins_path(no_pins());
++            assert_eq!(u.version, "0.0.1", "{} ignored its pretend version", app.id);
++            let version = u.version.clone();
++            let repo = app.repo;
++            u = u.with_source(Arc::new(move || {
++                crate::offered_release(r#"[{"tag_name":"v1.0.0","name":"Test release","draft":false,"prerelease":false}]"#, repo, &version)
++            }));
++            let ctx = egui::Context::default();
++            u.check_at_start(&ctx);
++            settle(&mut u, &ctx);
++            assert!(u.prompt_open(), "{} did not offer the newer release", app.id);
++            // The explicit test override also applies to the pre-existing installation guard.
++            // No assets means the installer stops before any network request or file replacement.
++            let dir = tempfile::tempdir().unwrap();
++            let error = self_update::update(
++                app,
++                &self_update::Install::AppImage(dir.path().join("test.AppImage")),
++                &newer(),
++                Platform { os: crate::Os::Linux, arch: crate::Arch::X64 },
++                &Http::new(crate::TEST_AGENT).unwrap(),
++                &Paths::under(dir.path()),
++                &Stop::default(),
++                &mut |_| {},
++                &|| Ok(()),
++                Some("99.0.0"),
++            )
++            .unwrap_err();
++            assert!(error.contains("has no"), "{}: {error}", app.id);
++            return;
++        }
++        for app in &crate::suite::SUITE {
++            let status = std::process::Command::new(std::env::current_exe().unwrap())
++                .args(["--exact", "updater::tests::pretend_versions_trigger_startup_prompts_for_every_app", "--nocapture"])
++                .env(CHILD, app.id)
++                .env(format!("{}_PRETEND_VERSION", app.id.to_uppercase()), "0.0.1")
++                .env_remove(self_update::PRETEND_VAR)
++                .status()
++                .unwrap();
++            assert!(status.success(), "{} pretend-version regression failed", app.id);
++        }
++    }
++
+     #[test]
+     fn a_requested_check_reports_an_up_to_date_app() {
+         let (ctx, mut u) = (egui::Context::default(), updater(Ok(None)));
+@@ -400,7 +515,7 @@ mod tests {
+     #[test]
+     fn a_panicking_check_is_an_error_not_a_hang() {
+         let ctx = egui::Context::default();
+-        let mut u = Updater::new(&PHOTOCRAFT, "0.1.0").with_source(Arc::new(|| std::panic::panic_any("boom")));
++        let mut u = Updater::new(&PHOTOCRAFT, "0.1.0").with_source(Arc::new(|| std::panic::panic_any("boom"))).with_pins_path(no_pins());
+         u.check_now(&ctx);
+         settle(&mut u, &ctx);
+         assert!(matches!(u.status(), Status::Failed(_)));
+@@ -490,3 +605,7 @@ mod tests {
+         assert_eq!(u.show(&ctx), Action::None);
+     }
+ }
++
++#[cfg(test)]
++#[path = "updater_pin_tests.rs"]
++mod pin_tests;
+########## self_update.rs ##########
+warning: in the working copy of 'C:\Dev\underworld-apps\local-image\libs\craft-libs\crates\update\src\self_update.rs', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'C:\Dev\underworld-apps\local-paint\libs\craft-libs\crates\update\src\self_update.rs', LF will be replaced by CRLF the next time Git touches it
+diff --git "a/C:\\Dev\\underworld-apps\\local-image\\libs\\craft-libs\\crates\\update\\src\\self_update.rs" "b/C:\\Dev\\underworld-apps\\local-paint\\libs\\craft-libs\\crates\\update\\src\\self_update.rs"
+index d32f089..cf51af1 100644
+--- "a/C:\\Dev\\underworld-apps\\local-image\\libs\\craft-libs\\crates\\update\\src\\self_update.rs"
++++ "b/C:\\Dev\\underworld-apps\\local-paint\\libs\\craft-libs\\crates\\update\\src\\self_update.rs"
+@@ -9,11 +9,11 @@
+ //! | Installed as | Swap |
+ //! |---|---|
+ //! | macOS `.app` | copy the new bundle from the DMG over this one (fine while running), reopen it |
+-//! | Windows MSI (per-user, any folder) | after exit, run the new MSI (it reinstalls into the same folder), then start the exe |
++//! | Windows MSI (any folder, for one account or everyone) | after exit, run the new MSI in the copy's own context (everyone asks for permission), then start the exe it registers |
+ //! | Windows portable zip | after exit, unzip over this folder (settings in `ArtCraftLauncherData` stay) |
+ //! | Linux AppImage | rename the new AppImage over this one (fine while running), start it |
+ //! | Linux `.deb` / `.rpm` | the system package manager, with the password prompt; then restart |
+-//! | Linux Flatpak | reinstall the bundle with `--reinstall` via the host portal; then restart |
++//! | Linux Flatpak | reinstall the bundle on the same installation (per-user, or system-wide through `pkexec`); then restart |
+ //!
+ //! Anything else (FreeBSD, a development build) gets the download link instead.
+ 
+@@ -85,7 +85,7 @@ pub const DEV_VAR: &str = "CRAFT_UPDATE_DEV";
+ 
+ /// The version this app counts as (see [`PRETEND_VAR`]).
+ pub fn current_version(app: &App, fallback_pkg_version: &str) -> Option<Version> {
+-    let app_pretend = format!("{}_PRETEND_VERSION", app.id.replace('-', "_").to_uppercase());
++    let app_pretend = pretend_var(app);
+     std::env::var(&app_pretend)
+         .or_else(|_| std::env::var(PRETEND_VAR))
+         .ok()
+@@ -93,6 +93,15 @@ pub fn current_version(app: &App, fallback_pkg_version: &str) -> Option<Version>
+         .or_else(|| version::parse(fallback_pkg_version))
+ }
+ 
++fn pretend_var(app: &App) -> String {
++    format!("{}_PRETEND_VERSION", app.id.replace('-', "_").to_uppercase())
++}
++
++/// A pretend version lasts one run, including when an update schedules a restart.
++fn clear_pretend_version(cmd: &mut std::process::Command, app: &App) {
++    cmd.env_remove(PRETEND_VAR).env_remove(pretend_var(app));
++}
++
+ /// How long a just-installed version stays exempt from being offered again.
+ const JUST_UPDATED_FOR: i64 = 24 * 3600;
+ 
+@@ -182,21 +191,17 @@ fn detect(app: &App, exe: &Path) -> Option<Install> {
+     None
+ }
+ 
++/// How the Windows copy at `exe` was installed: portable (a `portable.txt` beside it), by its MSI
++/// (registered in either context, or the launcher's own per-user package), else a loose folder.
+ #[cfg(windows)]
+ fn detect(app: &App, exe: &Path) -> Option<Install> {
+-    // All comparisons in canonical form: canonicalize gives a `\\?\`-prefixed path on Windows, so
+-    // a raw exe folder never equals a canonicalized registry or default folder, and every MSI
+-    // install fell through to the standalone (portable zip) kind.
+-    let canonical = |p: PathBuf| p.canonicalize().unwrap_or(p);
+-    let dir = exe.parent().map(|p| canonical(p.to_path_buf()))?;
++    let dir = exe.parent()?;
+     if dir.join("portable.txt").is_file() {
+         return Some(Install::Portable(exe.to_path_buf()));
+     }
+-    // The MSI installs per machine, into Program Files; a per-user kind would sit in
+-    // %LOCALAPPDATA%\Programs. Both record their folder in the registry.
+-    let recorded = msi_install_dir(app).map(canonical);
+-    let default = crate::folders::data_local_dir().map(|d| canonical(d.join("Programs").join(app.name)));
+-    if [recorded, default].into_iter().flatten().any(|d| d == dir) {
++    // Any folder, either context: the MSI's own registration says so (see `msi_copy`). A copy
++    // installed for everyone must never be unpacked over as if it were a loose folder.
++    if crate::msi_copy::windows::find(app, exe).is_some() {
+         return Some(Install::Msi(exe.to_path_buf()));
+     }
+     if exe.is_file() {
+@@ -205,37 +210,41 @@ fn detect(app: &App, exe: &Path) -> Option<Install> {
+     None
+ }
+ 
+-/// The folder the MSI installed into, as it records it.
++/// What `exe`'s MSI update does (update in place, or move a per-user copy to everyone), or why it
++/// stops. Asked while the app still runs (so it can show the error) and again by the helper.
+ #[cfg(windows)]
+-fn msi_install_dir(app: &App) -> Option<PathBuf> {
+-    use winreg::RegKey;
+-    use winreg::enums::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE};
+-    // The suite's own per-machine MSI records its install folder under the suite's key; a
+-    // per-user kind would sit in HKCU. HKLM first: the per-machine value is the whole machine's,
+-    // not just the current account's. Former names too: a renamed app still finds the folder the
+-    // earlier name's MSI recorded.
+-    for root in [HKEY_LOCAL_MACHINE, HKEY_CURRENT_USER] {
+-        for name in app.names() {
+-            let subkey = format!(r"Software\Anon5T4R\{}", name);
+-            if let Ok(key) = RegKey::predef(root).open_subkey(&subkey)
+-                && let Ok(dir) = key.get_value::<String, _>("InstallDir")
+-                && !dir.trim().is_empty()
+-            {
+-                return Some(PathBuf::from(dir));
+-            }
+-        }
+-    }
+-    None
++fn msi_step(app: &App, exe: &Path) -> Result<crate::msi_migrate::Step, String> {
++    crate::msi_migrate::windows::step(app, exe)
++}
++
++/// Whether the helper starts the app after the update step: always after a successful one, and
++/// after a failed one only while its exe is still there.
++#[cfg_attr(not(windows), allow(dead_code))]
++fn restarts(step_succeeded: bool, exe_exists: bool) -> bool {
++    step_succeeded || exe_exists
++}
++
++/// The exe to start after an MSI update of a registered copy: the one its registrations name now
++/// (the package may have moved an exact old default folder), else `exe`.
++#[cfg(windows)]
++fn exe_after_msi(app: &App, registered: bool, exe: &Path) -> PathBuf {
++    registered
++        .then(|| crate::msi_copy::registered_exe(&crate::msi_copy::windows::registered_exes(app)))
++        .flatten()
++        .filter(|moved| is_own_executable(app, moved))
++        .unwrap_or_else(|| exe.to_path_buf())
+ }
+ 
+ #[cfg(target_os = "linux")]
+ fn detect(app: &App, exe: &Path) -> Option<Install> {
+     if process::in_sandbox() {
+-        // Only the release bundle installed per user updates itself, with `flatpak install --user
+-        // --reinstall --bundle`. A system-wide copy would gain a second, per-user one beside it;
+-        // a copy from a repository is that repository's to update (and an unsigned bundle can't
+-        // go into a signed one).
+-        return (is_user_install() && from_bundle(app)).then_some(Install::Flatpak);
++        // A release bundle updates itself in place. Per-user uses `flatpak install --user`.
++        // System-wide uses `pkexec flatpak install --system`: `--user` would leave a second copy
++        // beside the system one, and Flatpak's own install-bundle polkit action is denied on
++        // current polkit when its message cannot fill in `$(path)`. A copy from a repository is
++        // that repository's to update, and an unsigned bundle can't go into a signed one.
++        let level = flatpak_level()?;
++        return from_bundle(app, level).then_some(Install::Flatpak);
+     }
+     if let Some(appimage) = std::env::var_os("APPIMAGE") {
+         return Some(Install::AppImage(PathBuf::from(appimage)));
+@@ -265,14 +274,22 @@ fn detect(app: &App, exe: &Path) -> Option<Install> {
+     None
+ }
+ 
+-/// Whether this sandbox runs the per-user installation's copy, from `app-path` in `/.flatpak-info`.
++/// Where this sandbox's Flatpak copy is installed, from `app-path` in `/.flatpak-info`.
+ #[cfg(target_os = "linux")]
+-fn is_user_install() -> bool {
+-    std::fs::read_to_string("/.flatpak-info").is_ok_and(|info| parse_is_user_install(&info))
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++enum FlatpakLevel {
++    User,
++    System,
+ }
+ 
+ #[cfg(target_os = "linux")]
+-fn parse_is_user_install(info: &str) -> bool {
++fn flatpak_level() -> Option<FlatpakLevel> {
++    let info = std::fs::read_to_string("/.flatpak-info").ok()?;
++    parse_flatpak_level(&info)
++}
++
++#[cfg(target_os = "linux")]
++fn parse_flatpak_level(info: &str) -> Option<FlatpakLevel> {
+     let mut in_instance = false;
+     for line in info.lines() {
+         let line = line.trim();
+@@ -281,18 +298,28 @@ fn parse_is_user_install(info: &str) -> bool {
+         } else if in_instance && let Some(path) = line.strip_prefix("app-path=") {
+             // The host's path. The per-user installation is ~/.local/share/flatpak there; it can't
+             // be looked up from in here, where XDG_DATA_HOME points into ~/.var/app instead.
+-            return path.trim().contains("/.local/share/flatpak/");
++            let path = path.trim();
++            if path.contains("/.local/share/flatpak/") {
++                return Some(FlatpakLevel::User);
++            }
++            if path.contains("/var/lib/flatpak/") {
++                return Some(FlatpakLevel::System);
++            }
++            return None;
+         }
+     }
+-    false
++    None
+ }
+ 
+-/// Whether the per-user copy was installed from a `.flatpak` bundle. `/.flatpak-info` doesn't say
+-/// where it came from, so the host's Flatpak is asked.
++/// Whether this copy was installed from a `.flatpak` bundle. `/.flatpak-info` doesn't say where
++/// it came from, so the host's Flatpak is asked on the same installation the copy runs from.
+ #[cfg(target_os = "linux")]
+-fn from_bundle(app: &App) -> bool {
+-    let id = app.bundle_id();
+-    process::capture_flatpak(&["info", "--user", "--show-origin", &id], std::time::Duration::from_secs(3))
++fn from_bundle(app: &App, level: FlatpakLevel) -> bool {
++    let scope = match level {
++        FlatpakLevel::User => "--user",
++        FlatpakLevel::System => "--system",
++    };
++    process::capture_flatpak(&["info", scope, "--show-origin", &app.bundle_id()], std::time::Duration::from_secs(3))
+         .is_some_and(|origin| is_bundle_origin(app, origin.trim()))
+ }
+ 
+@@ -326,8 +353,10 @@ pub fn update(
+ ) -> Result<(), String> {
+     let cur_v = running_version.and_then(|v| current_version(app, v));
+     if let (Some(rel_v), Some(cur_v)) = (release.version.as_ref(), cur_v.as_ref())
+-        && !version::is_newer(rel_v, cur_v)
++        && !version::offers_update(rel_v, cur_v)
+     {
++        // Compare the effective version: an explicit pretend version also exercises installation.
++        // Without that opt-in, a build from source requires a strictly higher release.
+         return Err(format!("{} {} is not newer than currently running version {}", app.name, release.version_label(), cur_v));
+     }
+     let (asset, _) = pick_asset(release, &[app.id], platform, &[install.kind()])
+@@ -353,24 +382,31 @@ pub fn update(
+                 let placed = install::macos::install_dmg(app, &file, Some(&existing), None, false, paths, &install::macos::Expect::release(release));
+                 let _ = std::fs::remove_file(&file);
+                 let placed = placed?;
+-                relaunch_after_exit(pid, &[Path::new("/usr/bin/open").as_os_str(), placed.as_os_str()])
++                relaunch_after_exit(app, pid, &[Path::new("/usr/bin/open").as_os_str(), placed.as_os_str()])
+             }
+             #[cfg(target_os = "linux")]
+             Install::AppImage(path) => {
+                 replace_appimage(&file, path)?;
+                 let _ = std::fs::remove_file(&file);
+-                relaunch_after_exit(pid, &[path.as_os_str()])
++                relaunch_after_exit(app, pid, &[path.as_os_str()])
+             }
+             #[cfg(target_os = "linux")]
+             Install::Package(kind, exe) => {
+                 let result = install::linux::install_package(*kind, &file, stop, phase);
+                 let _ = std::fs::remove_file(&file);
+                 result?;
+-                relaunch_after_exit(pid, &[exe.as_os_str()])
++                relaunch_after_exit(app, pid, &[exe.as_os_str()])
+             }
+             #[cfg(target_os = "linux")]
+             Install::Flatpak => {
+-                let result = install::linux::install_package(PackageKind::Flatpak, &file, stop, phase);
++                let system = match flatpak_level() {
++                    Some(FlatpakLevel::System) => true,
++                    Some(FlatpakLevel::User) => false,
++                    // Re-read rather than trusting a stale guess: `--user` on a system copy
++                    // would install a second one beside it.
++                    None => return Err(format!("this copy of {} can't update itself; download the new version instead", app.name)),
++                };
++                let result = install::linux::install_flatpak_bundle(&file, system, stop, phase);
+                 let _ = std::fs::remove_file(&file);
+                 result?;
+                 relaunch_flatpak_after_exit(app)
+@@ -392,7 +428,7 @@ pub fn update(
+                 let result = replace_standalone(app, &file, exe);
+                 let _ = std::fs::remove_file(&file);
+                 result?;
+-                relaunch_after_exit(pid, &[exe.as_os_str()])
++                relaunch_after_exit(app, pid, &[exe.as_os_str()])
+             }
+             #[allow(unreachable_patterns)]
+             _ => {
+@@ -476,20 +512,19 @@ fn replace_standalone(app: &App, tarball: &Path, exe: &Path) -> Result<(), Strin
+ 
+ /// Starts `sh`, which waits for `pid` to exit and then runs `command`. Detached, so it outlives us.
+ #[cfg(unix)]
+-fn relaunch_after_exit(pid: u32, command: &[&std::ffi::OsStr]) -> Result<(), String> {
+-    process::spawn_detached(helper_command(pid, command)).map_err(|e| format!("couldn't schedule the restart ({e})"))
++fn relaunch_after_exit(app: &App, pid: u32, command: &[&std::ffi::OsStr]) -> Result<(), String> {
++    process::spawn_detached(helper_command(app, pid, command)).map_err(|e| format!("couldn't schedule the restart ({e})"))
+ }
+ 
+ #[cfg(unix)]
+-fn helper_command(pid: u32, command: &[&std::ffi::OsStr]) -> std::process::Command {
++fn helper_command(app: &App, pid: u32, command: &[&std::ffi::OsStr]) -> std::process::Command {
+     let mut cmd = process::command("/bin/sh");
+     cmd.arg("-c")
+         .arg(r#"pid=$1; shift; i=0; while kill -0 "$pid" 2>/dev/null && [ $i -lt 600 ]; do sleep 0.1; i=$((i+1)); done; exec "$@""#)
+         .arg("sh")
+         .arg(pid.to_string())
+-        .args(command)
+-        // The new launcher reports its real version; a pretend one was for this run only.
+-        .env_remove(PRETEND_VAR);
++        .args(command);
++    clear_pretend_version(&mut cmd, app);
+     cmd
+ }
+ 
+@@ -553,10 +588,19 @@ fn relaunch_flatpak_after_exit(app: &App) -> Result<(), String> {
+         (None, None) => return Err(format!("{} is updated; quit and reopen it to start the new version", app.name)),
+     };
+     let script = format!("({wait_clause}) &");
++    process::spawn_detached(flatpak_restart_command(app, &script, &target_arg)).map_err(|e| format!("couldn't schedule the Flatpak restart ({e})"))
++}
++
++#[cfg(target_os = "linux")]
++fn flatpak_restart_command(app: &App, script: &str, target: &str) -> std::process::Command {
+     let app_id = app.bundle_id();
++    // flatpak run reapplies persistent overrides; removing inherited variables alone is insufficient.
++    let global_unset = format!("--unset-env={PRETEND_VAR}");
++    let app_unset = format!("--unset-env={}", pretend_var(app));
+     let mut cmd = process::command("flatpak-spawn");
+-    cmd.args(["--host", "sh", "-c", &script, "sh", &target_arg, "flatpak", "run", &app_id]).env_remove(PRETEND_VAR);
+-    process::spawn_detached(cmd).map_err(|e| format!("couldn't schedule the Flatpak restart ({e})"))
++    cmd.args(["--host", "sh", "-c", script, "sh", target, "flatpak", "run", &global_unset, &app_unset, &app_id]);
++    clear_pretend_version(&mut cmd, app);
++    cmd
+ }
+ 
+ /// The first argument of the Windows update helper: a copy of this program that finishes an
+@@ -617,7 +661,7 @@ const PORTABLE_STAGING: &str = "launcher-update";
+ /// `pid` to exit, does `finish` and starts `exe`. Run from the cache, the helper doesn't hold the
+ /// installed exe that the step replaces.
+ #[cfg(windows)]
+-fn windows_helper(_app: &App, paths: &Paths, pid: u32, exe: &Path, finish: &Finish) -> Result<(), String> {
++fn windows_helper(app: &App, paths: &Paths, pid: u32, exe: &Path, finish: &Finish) -> Result<(), String> {
+     let program = std::env::current_exe().map_err(|e| format!("couldn't find this program ({e})"))?;
+     let dir = paths.cache.join(HELPER_DIR);
+     // The previous update's copy, when it's still there.
+@@ -626,7 +670,8 @@ fn windows_helper(_app: &App, paths: &Paths, pid: u32, exe: &Path, finish: &Fini
+     let helper = dir.join(program.file_name().ok_or("this program has no file name")?);
+     std::fs::copy(&program, &helper).map_err(|e| format!("couldn't schedule the update ({e})"))?;
+     let mut cmd = process::command(&helper);
+-    cmd.args(helper_args(pid, exe, finish)).env_remove(PRETEND_VAR);
++    cmd.args(helper_args(pid, exe, finish));
++    clear_pretend_version(&mut cmd, app);
+     process::spawn_detached(cmd).map_err(|e| format!("couldn't schedule the update ({e})"))
+ }
+ 
+@@ -649,11 +694,20 @@ pub fn finish(app: &App, args: &[OsString]) -> Option<Result<(), String>> {
+         record_failure(&paths, &e);
+         return Some(Err(e));
+     }
++    // Read before the step: the update may move or replace the old exe.
++    let registered =
++        matches!(step, Finish::Msi(_)) && matches!(crate::msi_copy::windows::find(app, &exe), Some(crate::msi_copy::MsiCopy::Registered { .. }));
+     let done = run_step(app, &me, pid, &exe, &step, std::time::Duration::from_secs(60));
+     if let Err(e) = &done {
+         record_failure(&paths, e);
+     }
+     // The new app, or the old one when the step failed.
++    let exe = if done.is_ok() { exe_after_msi(app, registered, &exe) } else { exe };
++    // A failed move can leave no program to start; its recorded error already says how to get
++    // the app back, and a restart error must not replace it.
++    if !restarts(done.is_ok(), exe.is_file()) {
++        return Some(done);
++    }
+     let started = signed_like(app, &me, &exe)
+         .and_then(|()| process::spawn_detached(std::process::Command::new(&exe)).map_err(|e| format!("couldn't start {} ({e})", exe.display())));
+     if let Err(e) = &started {
+@@ -709,6 +763,7 @@ fn windows_precheck(app: &App, install: &Install, paths: &Paths, download: &Path
+     let me = std::env::current_exe().map_err(|e| format!("couldn't find this program ({e})"))?;
+     match install {
+         Install::Msi(exe) => signed_like(app, &me, exe)
++            .and_then(|()| msi_step(app, exe).map(drop))
+             .and_then(|()| signed_like(app, &me, download))
+             .and_then(|()| own_executable(app, exe))
+             .and_then(|()| same_cache_as_helper(app, paths, exe)),
+@@ -858,7 +913,9 @@ fn run_step(app: &App, reference: &Path, pid: u32, exe: &Path, step: &Finish, wa
+     wait_watch::returned(pid, waited);
+     let result = if waited {
+         match step {
+-            Finish::Msi(msi) => signed_like(app, reference, msi).and_then(|()| install::windows::reinstall(msi)),
++            Finish::Msi(msi) => {
++                signed_like(app, reference, msi).and_then(|()| msi_step(app, exe)).and_then(|step| crate::msi_migrate::windows::run(msi, &step))
++            }
+             Finish::Portable { zip, tmp } => match (exe.parent(), exe.file_name()) {
+                 (Some(dir), Some(executable)) => crate::portable::unpack_over(zip, tmp, dir, executable, &|file| {
+                     // The expected executable must be signed even when its contents aren't a PE file.
+@@ -1290,7 +1347,8 @@ mod tests {
+         gone.id()
+     }
+ 
+-    /// A catalog-signed program matches itself; an unsigned one never does, on either side.
++    /// A catalog-signed program matches itself; an unsigned one never does, on either side ÔÇö but
++    /// two unsigned files are this suite's own channel, which the release's checksum vouches for.
+     #[cfg(windows)]
+     #[test]
+     fn a_file_must_be_signed_by_the_launchers_own_publisher() {
+@@ -1299,20 +1357,22 @@ mod tests {
+         let unsigned = std::env::current_exe().unwrap();
+         assert_eq!(signed_like(&crate::suite::LAUNCHER, &cmd, &cmd), Ok(()));
+         assert!(signed_like(&crate::suite::LAUNCHER, &cmd, &unsigned).is_err_and(|e| e.contains("isn't signed")));
+-        assert!(signed_like(&crate::suite::LAUNCHER, &unsigned, &cmd).is_err_and(|e| e.contains("doesn't install updates")));
++        assert!(signed_like(&crate::suite::LAUNCHER, &unsigned, &cmd).is_err_and(|e| e.contains("is signed, but this copy")));
++        assert_eq!(signed_like(&crate::suite::LAUNCHER, &unsigned, &unsigned), Ok(()), "an unsigned channel updates itself");
+     }
+ 
+-    /// An unsigned launcher says so before it quits for an update. `cargo test` binaries are
+-    /// unsigned, like a package built without the signing secrets.
++    /// An unsigned copy (a package built without the signing secrets, like a `cargo test` binary)
++    /// refuses a signed file: it would be another channel's. Its own, unsigned downloads pass the
++    /// check, since the release's SHA-256 already vouched for them.
+     #[cfg(windows)]
+     #[test]
+-    fn an_unsigned_launcher_refuses_to_update_before_it_quits() {
++    fn an_unsigned_copy_refuses_a_signed_install() {
+         let dir = tempfile::tempdir().unwrap();
+         let msi = dir.path().join("artcraft-launcher-0.2.0-windows-x64.msi");
+         std::fs::write(&msi, "not a package").unwrap();
+         for install in [Install::Msi(system_program("msiexec.exe")), Install::Portable(system_program("msiexec.exe"))] {
+             let error = windows_precheck(&crate::suite::LAUNCHER, &install, &Paths::under(dir.path()), &msi).unwrap_err();
+-            assert!(error.contains("isn't signed"), "{error}");
++            assert!(error.contains("is signed, but this copy"), "{error}");
+         }
+     }
+ 
+@@ -1475,10 +1535,38 @@ mod tests {
+     #[cfg(unix)]
+     #[test]
+     fn the_restarted_launcher_does_not_inherit_a_pretend_version() {
+-        let cmd = helper_command(1, &[std::ffi::OsStr::new("/usr/bin/true")]);
++        let cmd = helper_command(&crate::suite::LAUNCHER, 1, &[std::ffi::OsStr::new("/usr/bin/true")]);
+         assert!(cmd.get_envs().any(|(k, v)| k == PRETEND_VAR && v.is_none()), "the helper must remove {PRETEND_VAR}");
+     }
+ 
++    #[test]
++    fn restarted_apps_do_not_inherit_their_pretend_versions() {
++        for app in crate::suite::SUITE.iter().chain(std::iter::once(&crate::suite::LAUNCHER)) {
++            let mut cmd = std::process::Command::new("unused");
++            clear_pretend_version(&mut cmd, app);
++            for key in [PRETEND_VAR.to_string(), pretend_var(app)] {
++                assert!(cmd.get_envs().any(|(k, v)| k == key.as_str() && v.is_none()), "{} retained {key}", app.id);
++            }
++        }
++    }
++
++    #[cfg(target_os = "linux")]
++    #[test]
++    fn flatpak_restart_unsets_persistent_pretend_version_overrides() {
++        for app in &crate::suite::SUITE {
++            let cmd = flatpak_restart_command(app, "exec \"$@\"", "123");
++            let args: Vec<_> = cmd.get_args().map(|v| v.to_string_lossy().into_owned()).collect();
++            let expected = [
++                "flatpak".to_string(),
++                "run".to_string(),
++                format!("--unset-env={PRETEND_VAR}"),
++                format!("--unset-env={}", pretend_var(app)),
++                app.bundle_id(),
++            ];
++            assert!(args.windows(expected.len()).any(|w| w == expected), "{}: {args:?}", app.id);
++        }
++    }
++
+     /// The helper waits for the old launcher to exit before it starts the new one.
+     #[cfg(unix)]
+     #[test]
+@@ -1486,7 +1574,7 @@ mod tests {
+         let dir = tempfile::tempdir().unwrap();
+         let marker = dir.path().join("started");
+         let mut old = std::process::Command::new("sleep").arg("1").spawn().unwrap();
+-        relaunch_after_exit(old.id(), &[std::ffi::OsStr::new("touch"), marker.as_os_str()]).unwrap();
++        relaunch_after_exit(&crate::suite::LAUNCHER, old.id(), &[std::ffi::OsStr::new("touch"), marker.as_os_str()]).unwrap();
+         std::thread::sleep(std::time::Duration::from_millis(400));
+         assert!(!marker.exists(), "started while the old launcher was still running");
+         old.wait().unwrap();
+@@ -1745,6 +1833,14 @@ mod tests {
+         assert_eq!(pick(Os::Linux, Install::Package(PackageKind::ArchPkg, PathBuf::new()).kind()).as_deref(), Some(names[6]));
+     }
+ 
++    #[test]
++    fn a_failed_step_that_removed_the_app_starts_nothing_and_keeps_its_message() {
++        assert!(restarts(true, true));
++        assert!(restarts(true, false));
++        assert!(restarts(false, true));
++        assert!(!restarts(false, false));
++    }
++
+     #[test]
+     fn update_refuses_to_downgrade_when_release_is_older() {
+         let dir = tempfile::tempdir().unwrap();
+@@ -1772,6 +1868,23 @@ mod tests {
+         assert!(result.unwrap_err().contains("is not newer than currently running version"));
+     }
+ 
++    #[test]
++    fn a_build_from_main_refuses_to_install_the_release_it_already_contains() {
++        let dir = tempfile::tempdir().unwrap();
++        let paths = Paths::under(dir.path());
++        let http = Http::new(crate::TEST_AGENT).unwrap();
++        let mut phase = |_| ();
++        let last = || Ok(());
++        let stop = Stop::default();
++        let release = Release { version: version::parse("0.2.0"), tag: "v0.2.0".into(), ..Release::default() };
++        let install = Install::AppImage(dir.path().join("launcher.AppImage"));
++        use crate::{Arch, Os};
++        let platform = Platform { os: Os::Linux, arch: Arch::X64 };
++        let running = Some("0.2.0-integration.20261029.f5b3f123");
++        let result = update(&crate::suite::LAUNCHER, &install, &release, platform, &http, &paths, &stop, &mut phase, &last, running);
++        assert!(result.unwrap_err().contains("is not newer than currently running version"));
++    }
++
+     #[cfg(target_os = "linux")]
+     #[test]
+     fn parses_flatpak_metadata_for_restart() {
+@@ -1784,19 +1897,26 @@ mod tests {
+         assert_eq!(parse_flatpak_host_pid(ps, "999999999"), None);
+     }
+ 
+-    /// Only the per-user installation's copy updates itself; a system-wide one is left alone.
++    /// A per-user bundle and a system-wide bundle are told apart. Anything else is left alone,
++    /// including `flatpak run --app-path=`, which mounts an empty /app.
+     #[cfg(target_os = "linux")]
+     #[test]
+-    fn only_a_per_user_install_updates_itself() {
++    fn a_flatpak_copy_is_updated_on_the_installation_it_runs_from() {
+         let info = |path: &str| format!("[Application]\nname=ai.storyteller.artcraft-launcher\n\n[Instance]\ninstance-id=1\napp-path={path}\n");
+-        assert!(parse_is_user_install(&info("/home/alice/.local/share/flatpak/app/ai.storyteller.artcraft-launcher/x86_64/stable/0a3de1c/files")));
+-        assert!(!parse_is_user_install(&info("/var/lib/flatpak/app/ai.storyteller.artcraft-launcher/x86_64/stable/0a3de1c/files")));
+-        // `flatpak run --app-path=` mounts an empty /app.
+-        assert!(!parse_is_user_install(&info("")));
++        assert_eq!(
++            parse_flatpak_level(&info("/home/alice/.local/share/flatpak/app/ai.storyteller.artcraft-launcher/x86_64/stable/0a3de1c/files")),
++            Some(FlatpakLevel::User)
++        );
++        assert_eq!(
++            parse_flatpak_level(&info("/var/lib/flatpak/app/ai.storyteller.artcraft-launcher/x86_64/stable/0a3de1c/files")),
++            Some(FlatpakLevel::System)
++        );
++        assert_eq!(parse_flatpak_level(&info("")), None);
++        assert_eq!(parse_flatpak_level(&info("/opt/flatpak/app/ai.storyteller.artcraft-launcher/files")), None);
+         // The key belongs to [Instance] only.
+-        assert!(!parse_is_user_install("[Application]\napp-path=/home/alice/.local/share/flatpak/app/x/files\n"));
+-        assert!(!parse_is_user_install("[Instance]\ninstance-id=123\n"));
+-        assert!(!parse_is_user_install(""));
++        assert_eq!(parse_flatpak_level("[Application]\napp-path=/home/alice/.local/share/flatpak/app/x/files\n"), None);
++        assert_eq!(parse_flatpak_level("[Instance]\ninstance-id=123\n"), None);
++        assert_eq!(parse_flatpak_level(""), None);
+     }
+ 
+     /// A copy from a repository (Flathub or any other) isn't the bundle's to replace.
+########## install.rs ##########
+warning: in the working copy of 'C:\Dev\underworld-apps\local-paint\libs\craft-libs\crates\update\src\install.rs', LF will be replaced by CRLF the next time Git touches it
+diff --git "a/C:\\Dev\\underworld-apps\\local-image\\libs\\craft-libs\\crates\\update\\src\\install.rs" "b/C:\\Dev\\underworld-apps\\local-paint\\libs\\craft-libs\\crates\\update\\src\\install.rs"
+index 09de4e0..1d38e19 100644
+--- "a/C:\\Dev\\underworld-apps\\local-image\\libs\\craft-libs\\crates\\update\\src\\install.rs"
++++ "b/C:\\Dev\\underworld-apps\\local-paint\\libs\\craft-libs\\crates\\update\\src\\install.rs"
+@@ -205,7 +205,7 @@ pub fn occupied(
+     let target = match kind {
+         PackageKind::Msi => folder,
+         PackageKind::PortableZip => Some(folder.unwrap_or_else(|| paths.apps()).join(app.id)),
+-        PackageKind::Dmg => folder.map(|f| f.join(format!("{}.app", app.name))),
++        PackageKind::Dmg => folder.and_then(|f| app.names().map(|n| f.join(format!("{n}.app"))).find(|p| std::fs::symlink_metadata(p).is_ok())),
+         #[cfg(target_os = "linux")]
+         PackageKind::AppImage => folder.or_else(crate::detect::linux::appimage_dir).map(|f| f.join(&asset.name)),
+         _ => None,
+@@ -908,6 +908,86 @@ pub(crate) mod linux {
+         kinds
+     }
+ 
++    /// Flags for `flatpak install` of one bundle. A per-user install stays noninteractive.
++    /// A system-wide install is also noninteractive: it runs under `pkexec`, which asks for the
++    /// password. Flatpak's own install-bundle action does not. Its polkit message needs `$(path)`,
++    /// and current polkit denies the action when that detail is missing, with no dialog.
++    pub(crate) fn flatpak_bundle_flags(system: bool) -> &'static [&'static str] {
++        if system {
++            &["install", "--system", "-y", "--noninteractive", "--reinstall", "--bundle"]
++        } else {
++            &["install", "--user", "-y", "--noninteractive", "--reinstall", "--bundle"]
++        }
++    }
++
++    /// Program prefix for a system-wide bundle reinstall. Inside the sandbox the host runs it,
++    /// because this process cannot see the host's `pkexec` or write `/var/lib/flatpak`.
++    pub(crate) fn system_bundle_prefix(in_sandbox: bool) -> &'static [&'static str] {
++        if in_sandbox { &["flatpak-spawn", "--host", "pkexec", "/usr/bin/flatpak"] } else { &["pkexec", "/usr/bin/flatpak"] }
++    }
++
++    fn system_bundle_command(file: &Path) -> Result<std::process::Command, String> {
++        if !process::in_sandbox() && pkexec().is_none() {
++            return Err("installing system-wide needs polkit (pkexec), which isn't installed".into());
++        }
++        let prefix = system_bundle_prefix(process::in_sandbox());
++        let Some((program, rest)) = prefix.split_first() else {
++            return Err("couldn't start Flatpak".into());
++        };
++        let mut cmd = process::command(*program);
++        cmd.args(rest);
++        cmd.args(flatpak_bundle_flags(true));
++        cmd.arg(file);
++        Ok(cmd)
++    }
++
++    pub(crate) fn flatpak_bundle_error(output: &std::process::Output) -> Result<(), String> {
++        if output.status.success() {
++            return Ok(());
++        }
++        // pkexec: 126 = the password prompt was dismissed, 127 = not authorized.
++        if matches!(output.status.code(), Some(126 | 127)) {
++            let detail = String::from_utf8_lossy(&output.stderr);
++            log::warn!("flatpak bundle install ended with {:?}: {}", output.status.code(), detail.trim());
++            return Err(CANCELLED.into());
++        }
++        let stderr = String::from_utf8_lossy(&output.stderr);
++        let err = stderr.trim();
++        let err = if err.is_empty() { String::from_utf8_lossy(&output.stdout).trim().to_string() } else { err.to_string() };
++        if err.is_empty() {
++            Err("Flatpak couldn't install the bundle (it needs the Flathub remote for its runtime)".into())
++        } else {
++            let clean_err = err.strip_prefix("error: ").or_else(|| err.strip_prefix("Error: ")).unwrap_or(&err);
++            Err(format!("Flatpak couldn't install the bundle: {clean_err}"))
++        }
++    }
++
++    /// Reinstalls a downloaded `.flatpak` bundle. `system` replaces the system-wide copy through
++    /// `pkexec`. Per-user stays a normal `flatpak install --user`, which needs no password.
++    pub(crate) fn install_flatpak_bundle(file: &Path, system: bool, stop: &Stop, phase: &mut dyn FnMut(JobPhase)) -> Result<(), String> {
++        install_flatpak_bundle_via(&SYSTEM, file, system, stop, phase)
++    }
++
++    fn install_flatpak_bundle_via(root: &Root<'_>, file: &Path, system: bool, stop: &Stop, phase: &mut dyn FnMut(JobPhase)) -> Result<(), String> {
++        let install_one = || {
++            log::info!("executing flatpak install --reinstall --bundle for {}", file.display());
++            let mut cmd = if system {
++                system_bundle_command(file)?
++            } else {
++                let mut cmd = process::flatpak_command();
++                cmd.args(flatpak_bundle_flags(false));
++                cmd.arg(file);
++                cmd
++            };
++            let output = cmd.output().map_err(|e| format!("couldn't start Flatpak ({e})"))?;
++            if output.status.success() {
++                log::info!("flatpak install succeeded for {}", file.display());
++            }
++            flatpak_bundle_error(&output)
++        };
++        root.queue.alone(&cancelled(stop), &mut turn(phase, JobPhase::Installing), install_one).unwrap_or(Err(CANCELLED.into()))
++    }
++
+     /// Installs (or upgrades) a downloaded package with the system's own tools.
+     pub fn install_package(kind: PackageKind, file: &Path, stop: &Stop, phase: &mut dyn FnMut(JobPhase)) -> Result<(), String> {
+         if kind == PackageKind::Deb && system_tool("apt-get").is_none() {
+@@ -925,31 +1005,7 @@ pub(crate) mod linux {
+             return as_root(root, command, f, stop, phase, JobPhase::Installing);
+         }
+         match kind {
+-            PackageKind::Flatpak => {
+-                let install_one = || {
+-                    log::info!("executing flatpak install --reinstall --bundle for {}", file.display());
+-                    let output = process::flatpak_command()
+-                        .args(["install", "--user", "-y", "--noninteractive", "--reinstall", "--bundle"])
+-                        .arg(f)
+-                        .output()
+-                        .map_err(|e| format!("couldn't start Flatpak ({e})"))?;
+-                    if output.status.success() {
+-                        log::info!("flatpak install succeeded for {}", file.display());
+-                        Ok(())
+-                    } else {
+-                        let stderr = String::from_utf8_lossy(&output.stderr);
+-                        let err = stderr.trim();
+-                        let err = if err.is_empty() { String::from_utf8_lossy(&output.stdout).trim().to_string() } else { err.to_string() };
+-                        if err.is_empty() {
+-                            Err("Flatpak couldn't install the bundle (it needs the Flathub remote for its runtime)".into())
+-                        } else {
+-                            let clean_err = err.strip_prefix("error: ").or_else(|| err.strip_prefix("Error: ")).unwrap_or(&err);
+-                            Err(format!("Flatpak couldn't install the bundle: {clean_err}"))
+-                        }
+-                    }
+-                };
+-                root.queue.alone(&cancelled(stop), &mut turn(phase, JobPhase::Installing), install_one).unwrap_or(Err(CANCELLED.into()))
+-            }
++            PackageKind::Flatpak => install_flatpak_bundle_via(root, file, false, stop, phase),
+             other => Err(format!("{} isn't a system package", other.label())),
+         }
+     }
+@@ -1113,13 +1169,7 @@ pub(crate) mod linux {
+     /// Where menu entries and icons go: `$XDG_DATA_HOME`, else `~/.local/share`. Inside the
+     /// launcher's own Flatpak that variable points into the sandbox, so the host's is used.
+     pub fn host_data_dir() -> Option<PathBuf> {
+-        if Path::new("/.flatpak-info").exists() {
+-            if let Some(dir) = std::env::var_os("HOST_XDG_DATA_HOME").map(PathBuf::from).filter(|p| p.is_absolute()) {
+-                return Some(dir);
+-            }
+-            return crate::folders::home_dir().map(|h| h.join(".local").join("share"));
+-        }
+-        crate::folders::data_local_dir()
++        crate::folders::host_data_local_dir()
+     }
+ 
+     /// The app's 128 px icon, as bundled in `assets/app-icons`.
+@@ -1337,9 +1387,14 @@ pub mod macos {
+         replace: bool,
+         expect: &Expect<'_>,
+     ) -> Result<PathBuf, String> {
+-        let bundle = format!("{}.app", app.name);
++        // The bundle keeps the name its earlier install shipped under, so try every name and take
++        // the one whose Info.plist carries this app's bundle id.
++        let bundle = app
++            .names()
++            .map(|name| format!("{name}.app"))
++            .find(|bundle| crate::detect::macos::read_bundle(app, &mount.join(bundle.as_str())).is_some())
++            .ok_or("the disk image doesn't contain the app")?;
+         let src = mount.join(&bundle);
+-        crate::detect::macos::read_bundle(app, &src).ok_or("the disk image doesn't contain the app")?;
+         let dir = applications_dir(existing, destination)?;
+         let dest = existing.filter(|i| i.source == InstallSource::MacApp).map_or_else(|| dir.join(&bundle), |i| PathBuf::from(&i.location));
+         if !replace
+@@ -1645,9 +1700,18 @@ fn msi_command(program: &Path, msi: &Path) -> Result<std::process::Command, Stri
+     Ok(command)
+ }
+ 
++/// The self-update command: [`msi_command`] plus the properties that keep the installed copy's
++/// Windows Installer context (`msi_copy::update_arguments`).
++#[cfg_attr(not(windows), allow(dead_code))]
++fn reinstall_command(program: &Path, msi: &Path, context: &[&str]) -> Result<std::process::Command, String> {
++    let mut command = msi_command(program, msi)?;
++    command.args(context);
++    Ok(command)
++}
++
+ /// Where `msi_command` asks Windows Installer to write its log.
+ #[cfg_attr(not(windows), allow(dead_code))]
+-fn msi_log(msi: &Path) -> PathBuf {
++pub(crate) fn msi_log(msi: &Path) -> PathBuf {
+     msi.with_extension("log")
+ }
+ 
+@@ -1667,7 +1731,9 @@ pub(crate) fn msi_path(msi: &Path) -> Result<PathBuf, String> {
+ pub mod windows {
+     use crate::protocol::CANCELLED;
+ 
+-    use super::{App, INSTALLER, JobPhase, Path, PathBuf, Stop, cancelled, msi_command, msi_folder_argument, msi_log, process, turn};
++    use super::{
++        App, INSTALLER, JobPhase, Path, PathBuf, Stop, cancelled, msi_command, msi_folder_argument, msi_log, process, reinstall_command, turn,
++    };
+ 
+     fn msiexec() -> PathBuf {
+         std::env::var_os("SystemRoot").map_or_else(|| PathBuf::from(r"C:\Windows"), PathBuf::from).join(r"System32\msiexec.exe")
+@@ -1700,11 +1766,21 @@ pub mod windows {
+         })
+     }
+ 
+-    /// Runs the launcher's own new MSI for a self-update, with the same progress window and no
+-    /// restart as [`run_msi`], and waits for it.
+-    pub fn reinstall(msi: &Path) -> Result<(), String> {
+-        let status = msi_command(&msiexec(), msi)?.status().map_err(|e| format!("couldn't start the Windows Installer ({e})"))?;
+-        explain(status.code())
++    /// Runs an app's own new MSI for a self-update, with the same progress window and no restart
++    /// as [`run_msi`], and waits for it. `context` keeps the installed copy's Windows Installer
++    /// context; `folder`, when given, is where it goes. A failure names the installer's log,
++    /// which is the only place 1603 is explained.
++    pub fn reinstall(msi: &Path, context: &[&str], folder: Option<&Path>) -> Result<(), String> {
++        use std::os::windows::process::CommandExt;
++        let mut command = reinstall_command(&msiexec(), msi, context)?;
++        if let Some(dir) = folder {
++            command.raw_arg(msi_folder_argument(dir)?);
++        }
++        let status = command.status().map_err(|e| format!("couldn't start the Windows Installer ({e})"))?;
++        explain(status.code()).map_err(|e| match status.code() {
++            Some(1602) | None => e,
++            _ => format!("{e}. Its log is at {}", msi_log(msi).display()),
++        })
+     }
+ 
+     /// Runs `work` once no other Windows Installer job of ours is running (a second one would
+@@ -1713,6 +1789,20 @@ pub mod windows {
+         INSTALLER.alone(&cancelled(stop), &mut turn(phase, working), work).unwrap_or_else(|| Err(CANCELLED.into()))
+     }
+ 
++    /// Removes one installed product by its code, with a progress window and no restart, and waits.
++    /// A per-user product asks for no permission. `log` receives the installer's verbose log.
++    pub fn remove_product(product_code: &str, log: &Path) -> Result<(), String> {
++        if !crate::msi_context::valid_product_code(product_code) {
++            return Err(format!("{product_code} isn't a Windows Installer product code"));
++        }
++        let status = process::command(msiexec())
++            .args(["/x", product_code, "/passive", "/norestart", "/l*v"])
++            .arg(log)
++            .status()
++            .map_err(|e| format!("couldn't start the Windows Installer ({e})"))?;
++        explain(status.code()).map_err(|e| format!("{e}. Its log is at {}", log.display()))
++    }
++
+     pub fn uninstall_msi(app: &App, stop: &Stop, phase: &mut dyn FnMut(JobPhase)) -> Result<(), String> {
+         let installs = crate::detect::windows::msi_installs(app);
+         if installs.is_empty() {
+@@ -1735,6 +1825,31 @@ pub mod windows {
+ mod tests {
+     use super::*;
+ 
++    #[cfg(target_os = "linux")]
++    #[test]
++    fn a_system_flatpak_bundle_is_reinstalled_with_pkexec_on_that_installation() {
++        assert_eq!(super::linux::flatpak_bundle_flags(false), ["install", "--user", "-y", "--noninteractive", "--reinstall", "--bundle"]);
++        let system = super::linux::flatpak_bundle_flags(true);
++        assert_eq!(system, ["install", "--system", "-y", "--noninteractive", "--reinstall", "--bundle"]);
++        assert!(!system.contains(&"--user"));
++        assert_eq!(super::linux::system_bundle_prefix(true), ["flatpak-spawn", "--host", "pkexec", "/usr/bin/flatpak"]);
++        assert_eq!(super::linux::system_bundle_prefix(false), ["pkexec", "/usr/bin/flatpak"]);
++    }
++
++    #[cfg(target_os = "linux")]
++    #[test]
++    fn a_dismissed_system_bundle_password_cancels_and_a_flatpak_error_is_kept() {
++        use std::os::unix::process::ExitStatusExt;
++        use std::process::Output;
++        let dismissed = Output { status: std::process::ExitStatus::from_raw(126 << 8), stdout: Vec::new(), stderr: Vec::new() };
++        assert_eq!(super::linux::flatpak_bundle_error(&dismissed).unwrap_err(), "cancelled");
++        let failed =
++            Output { status: std::process::ExitStatus::from_raw(1 << 8), stdout: Vec::new(), stderr: b"error: something went wrong\n".to_vec() };
++        assert_eq!(super::linux::flatpak_bundle_error(&failed).unwrap_err(), "Flatpak couldn't install the bundle: something went wrong");
++        let ok = Output { status: std::process::ExitStatus::from_raw(0), stdout: Vec::new(), stderr: Vec::new() };
++        assert!(super::linux::flatpak_bundle_error(&ok).is_ok());
++    }
++
+     #[cfg(unix)]
+     #[test]
+     fn msi_install_uses_the_package_target_instead_of_a_symlinked_cache() {
+@@ -1760,6 +1875,22 @@ mod tests {
+         );
+     }
+ 
++    #[test]
++    fn a_self_update_keeps_the_installed_copys_context_after_the_package_options() {
++        let dir = tempfile::tempdir().unwrap();
++        let file = dir.path().join("GridCraft.msi");
++        std::fs::write(&file, b"test package").unwrap();
++        let resolved = msi_path(&file).unwrap();
++        for context in [&["ALLUSERS=1"][..], &["ALLUSERS=2", "MSIINSTALLPERUSER=1"], &[]] {
++            let command = reinstall_command(Path::new("msiexec.exe"), &file, context).unwrap();
++            let args: Vec<_> = command.get_args().map(|a| a.to_string_lossy().into_owned()).collect();
++            let mut expected: Vec<String> = ["/i", &resolved.to_string_lossy(), "/passive", "/norestart", "/l*v"].map(String::from).to_vec();
++            expected.push(resolved.with_extension("log").to_string_lossy().into_owned());
++            expected.extend(context.iter().map(|p| p.to_string()));
++            assert_eq!(args, expected);
++        }
++    }
++
+     #[test]
+     fn an_unavailable_msi_is_refused_before_starting_the_installer() {
+         let dir = tempfile::tempdir().unwrap();
+########## portable.rs ##########
+warning: in the working copy of 'C:\Dev\underworld-apps\local-paint\libs\craft-libs\crates\update\src\portable.rs', LF will be replaced by CRLF the next time Git touches it
+########## http.rs ##########
+warning: in the working copy of 'C:\Dev\underworld-apps\local-paint\libs\craft-libs\crates\update\src\http.rs', LF will be replaced by CRLF the next time Git touches it
+diff --git "a/C:\\Dev\\underworld-apps\\local-image\\libs\\craft-libs\\crates\\update\\src\\http.rs" "b/C:\\Dev\\underworld-apps\\local-paint\\libs\\craft-libs\\crates\\update\\src\\http.rs"
+index 68d76e9..9561cc3 100644
+--- "a/C:\\Dev\\underworld-apps\\local-image\\libs\\craft-libs\\crates\\update\\src\\http.rs"
++++ "b/C:\\Dev\\underworld-apps\\local-paint\\libs\\craft-libs\\crates\\update\\src\\http.rs"
+@@ -12,6 +12,8 @@ use sha2::{Digest, Sha256};
+ 
+ /// Largest JSON or text answer we read.
+ const MAX_SMALL: u64 = 4 << 20;
++/// Largest GitHub API answer we read: 100 releases of an app with 49 assets are about 10 MB.
++const MAX_API: u64 = 16 << 20;
+ 
+ /// What a GET of a small resource produced.
+ #[derive(Debug, PartialEq, Eq)]
+@@ -31,7 +33,7 @@ pub enum Fetched {
+ 
+ #[derive(Clone)]
+ pub struct Http {
+-    /// // local-image: um ├║nico conjunto de agentes, sempre com o provider
++    /// // local-paint: um ├║nico conjunto de agentes, sempre com o provider
+     /// `rustls-rustcrypto` (o caminho puro; n├úo h├í fallback).
+     agents: Agents,
+     token: Option<String>,
+@@ -138,7 +140,7 @@ impl Http {
+         // The OS checks each certificate chain itself: Windows fetches roots it hasn't stored yet
+         // and trusts what antivirus HTTPS scanning installs. Reading the store ourselves missed
+         // both ("invalid peer certificate: UnknownIssuer").
+-        // // local-image: provider puro (rustls-rustcrypto) ├® o caminho ├ÜNICO do app - n├úo h├í
++        // // local-paint: provider puro (rustls-rustcrypto) ├® o caminho ├ÜNICO do app - n├úo h├í
+         // conjunto de agentes com o provider padr├úo (ring): ele nem ├® compilado.
+         let tls = ureq::tls::TlsConfig::builder()
+             .root_certs(ureq::tls::RootCerts::PlatformVerifier)
+@@ -186,7 +188,7 @@ impl Http {
+         match status {
+             200 => {
+                 let etag = header("etag");
+-                let text = read_text_capped(&mut resp, MAX_SMALL).map_err(|e| format!("unreadable answer from GitHub ({e})"))?;
++                let text = read_text_capped(&mut resp, MAX_API).map_err(|e| format!("unreadable answer from GitHub ({e})"))?;
+                 Ok(Fetched::Body { text, etag })
+             }
+             304 => Ok(Fetched::NotModified),
+@@ -1041,6 +1043,19 @@ pub(crate) mod tests {
+         assert_eq!(http.get_feed(&url).unwrap(), "{\"ok\":true}");
+     }
+ 
++    #[test]
++    fn a_long_release_list_is_read_up_to_the_api_cap() {
++        // SolidCraft's list of 100 releases was 6.5 MB, past MAX_SMALL (craft-launcher#1021).
++        let long = vec![b' '; (MAX_SMALL as usize) + 1024];
++        let (url, _) = serve(long.clone(), vec![Reply::Full]);
++        let http = Http::new(crate::TEST_AGENT).unwrap();
++        assert!(matches!(http.get_api(&url, None), Ok(Fetched::Body { text, .. }) if text.len() == long.len()));
++        // Past MAX_API it is refused outright, not truncated and parsed.
++        let (url, _) = serve(vec![b' '; (MAX_API as usize) + 1024], vec![Reply::Full]);
++        let err = http.get_api(&url, None).unwrap_err();
++        assert!(err.contains("larger than"), "{err}");
++    }
++
+     #[test]
+     fn a_gzip_bomb_answer_is_refused_before_parsing() {
+         // A few hundred bytes on the wire that decode to more than MAX_SMALL. ureq's own limit
+########## detect.rs ##########
+warning: in the working copy of 'C:\Dev\underworld-apps\local-paint\libs\craft-libs\crates\update\src\detect.rs', LF will be replaced by CRLF the next time Git touches it
+diff --git "a/C:\\Dev\\underworld-apps\\local-image\\libs\\craft-libs\\crates\\update\\src\\detect.rs" "b/C:\\Dev\\underworld-apps\\local-paint\\libs\\craft-libs\\crates\\update\\src\\detect.rs"
+index 87cde73..e24f096 100644
+--- "a/C:\\Dev\\underworld-apps\\local-image\\libs\\craft-libs\\crates\\update\\src\\detect.rs"
++++ "b/C:\\Dev\\underworld-apps\\local-paint\\libs\\craft-libs\\crates\\update\\src\\detect.rs"
+@@ -139,12 +139,12 @@ pub mod macos {
+ 
+     use super::{App, InstallSource, Installed, version};
+ 
+-    /// Where a `.app` might be: the system and the user's Applications folders. Former names too:
+-    /// a renamed app still finds the bundle the earlier name installed.
++    /// Where a `.app` might be: the system and the user's Applications folders. Every name the app
++    /// has had, too: a renamed app still finds the bundle the earlier name installed.
+     pub fn candidates(app: &App) -> Vec<PathBuf> {
+         let mut out = Vec::new();
+         for name in app.names() {
+-            let bundle = format!("{}.app", name);
++            let bundle = format!("{name}.app");
+             out.push(Path::new("/Applications").join(&bundle));
+             if let Some(home) = crate::folders::home_dir() {
+                 out.push(home.join("Applications").join(&bundle));
+@@ -165,10 +165,12 @@ pub mod macos {
+             return None;
+         }
+         // `<App>Version` carries the full version including a pre-release suffix;
+-        // CFBundleShortVersionString only has the numbers.
+-        let full_key = format!("{}Version", app.name);
+-        let text =
+-            [full_key.as_str(), "CFBundleShortVersionString", "CFBundleVersion"].iter().find_map(|k| dict.get(k).and_then(plist::Value::as_string));
++        // CFBundleShortVersionString only has the numbers. Every name the app has had: the key
++        // keeps the name its `Info.plist` was written with.
++        let full_keys: Vec<String> = app.names().map(|name| format!("{name}Version")).collect();
++        let mut keys: Vec<&str> = full_keys.iter().map(String::as_str).collect();
++        keys.extend(["CFBundleShortVersionString", "CFBundleVersion"]);
++        let text = keys.iter().find_map(|k| dict.get(k).and_then(plist::Value::as_string));
+         Some(Installed { version: text.and_then(version::parse), source: InstallSource::MacApp, location: path.display().to_string(), package: None })
+     }
+ }
+@@ -238,12 +240,12 @@ pub mod windows {
+     }
+ 
+     /// The folder the app's MSI remembers for its next upgrade, which is where it went when the
+-    /// launcher chose the folder.
++    /// launcher chose the folder. Every name the app has had: the key keeps the name the MSI was
++    /// installed under.
+     fn install_dir(app: &App) -> Option<PathBuf> {
+-        // Former names too: a renamed app still finds the folder the earlier name recorded.
+         [KEY_WOW64_64KEY, KEY_WOW64_32KEY].into_iter().find_map(|flags| {
+             app.names().find_map(|name| {
+-                let key = RegKey::predef(HKEY_LOCAL_MACHINE).open_subkey_with_flags(format!(r"SOFTWARE\{}", name), KEY_READ | flags).ok()?;
++                let key = RegKey::predef(HKEY_LOCAL_MACHINE).open_subkey_with_flags(format!(r"SOFTWARE\{name}"), KEY_READ | flags).ok()?;
+                 key.get_value::<String, _>("InstallDir").ok().filter(|d| !d.is_empty()).map(PathBuf::from)
+             })
+         })
+@@ -727,10 +729,11 @@ mod tests {
+ 
+     #[test]
+     fn the_apps_installer_publisher_matches_its_wix_manufacturer() {
+-        let app = App::by_id("local-image").unwrap();
+-        let publisher = "LocalImage contributors";
+-        assert!(is_installer_entry(app, "Local Image", publisher), "the WiX names Manufacturer=\"{publisher}\"");
+-        assert!(!is_installer_entry(app, "Local Image", LEARNING_MACHINES), "the upstream publisher is not this app's");
++        let app = App::by_id("localpaint").unwrap();
++        assert!(is_installer_entry(app, "Local Paint", "Local Paint contributors"), "the WiX names Manufacturer=\"Local Paint contributors\"");
++        assert!(is_installer_entry(app, "LocalPaint", "Local Paint contributors"), "an MSI from before the rename is still this app's");
++        assert!(!is_installer_entry(app, "Local Paint", LEARNING_MACHINES), "the upstream publisher is not this app's");
++        assert!(!is_installer_entry(app, "Local Paint", "Anon5T4R"), "the old publisher is not this app's any more");
+     }
+ 
+     #[test]
+########## suite.rs ##########
+warning: in the working copy of 'C:\Dev\underworld-apps\local-image\libs\craft-libs\crates\update\src\suite.rs', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'C:\Dev\underworld-apps\local-paint\libs\craft-libs\crates\update\src\suite.rs', LF will be replaced by CRLF the next time Git touches it
+diff --git "a/C:\\Dev\\underworld-apps\\local-image\\libs\\craft-libs\\crates\\update\\src\\suite.rs" "b/C:\\Dev\\underworld-apps\\local-paint\\libs\\craft-libs\\crates\\update\\src\\suite.rs"
+index c8e1433..b8690c7 100644
+--- "a/C:\\Dev\\underworld-apps\\local-image\\libs\\craft-libs\\crates\\update\\src\\suite.rs"
++++ "b/C:\\Dev\\underworld-apps\\local-paint\\libs\\craft-libs\\crates\\update\\src\\suite.rs"
+@@ -1,11 +1,16 @@
+ //! The Craft App Suite as releases know it: each app's id, name and repository.
+ //!
+-//! An app that updates itself takes its own entry (`suite::PHOTOCRAFT`); the launcher takes all
++//! An app that updates itself takes its own entry (`suite::LOCALPAINT`); the launcher takes all
+ //! of them. Installers use the list to tell a Craft App's package from anyone else's.
+ 
+ use crate::app::App;
+ 
+ pub const PHOTOCRAFT: App = App::new("photocraft", "PhotoCraft", "Image editing", "storytold/photocraft");
++pub const LOCALPAINT: App = App {
++    former_names: &["LocalPaint"],
++    publisher: "Local Paint contributors",
++    ..App::new("localpaint", "Local Paint", "Image editing", "Anon5T4R/Local-Paint")
++};
+ pub const VECTORCRAFT: App = App::new("vectorcraft", "VectorCraft", "Vector illustration", "storytold/vectorcraft");
+ pub const FILMCRAFT: App = App::new("filmcraft", "FilmCraft", "Video editing, color and sound", "storytold/filmcraft");
+ pub const LIGHTCRAFT: App = App::new("lightcraft", "LightCraft", "Photo library and raw development", "storytold/lightcraft");
+@@ -17,9 +22,7 @@ pub const PDFCRAFT: App = App {
+ pub const EFFECTCRAFT: App = App::new("effectcraft", "EffectCraft", "Motion graphics and visual effects", "storytold/effectcraft");
+ pub const DESIGNCRAFT: App = App::new("designcraft", "DesignCraft", "Page layout and publishing", "storytold/designcraft");
+ pub const FIGCRAFT: App = App::new("figcraft", "FigCraft", "Interface design and prototyping", "storytold/figcraft");
+-pub const LOCALKEYS: App = App::new("local-keys", "Local Keys", "Password manager", "Anon5T4R/Local-Keys");
+-pub const LOCALIMAGE: App =
+-    App { publisher: "LocalImage contributors", ..App::new("local-image", "Local Image", "Image viewer", "Anon5T4R/Local-Image") };
++pub const WORDCRAFT: App = App::new("wordcraft", "WordCraft", "Writing and document design", "storytold/wordcraft");
+ pub const SOUNDCRAFT: App = App::new("soundcraft", "SoundCraft", "Recording, editing and mixing audio", "storytold/soundcraft");
+ pub const DECKCRAFT: App = App::new("deckcraft", "DeckCraft", "Presentations and slide shows", "storytold/deckcraft");
+ pub const LOCALSLIDES: App = App {
+@@ -39,6 +42,7 @@ pub const LAUNCHER: App = App::new("artcraft-launcher", "ArtCraft Launcher", "In
+ /// The Craft App Suite, in getartcraft.com's display order.
+ pub const SUITE: [App; 16] = [
+     PHOTOCRAFT,
++    LOCALPAINT,
+     VECTORCRAFT,
+     FILMCRAFT,
+     LIGHTCRAFT,
+@@ -46,8 +50,7 @@ pub const SUITE: [App; 16] = [
+     EFFECTCRAFT,
+     DESIGNCRAFT,
+     FIGCRAFT,
+-    LOCALKEYS,
+-    LOCALIMAGE,
++    WORDCRAFT,
+     SOUNDCRAFT,
+     DECKCRAFT,
+     LOCALSLIDES,
+@@ -72,12 +75,17 @@ mod tests {
+         ids.dedup();
+         assert_eq!(ids.len(), SUITE.len());
+         for a in &SUITE {
++            // The suite's own apps are rebranded, so their display name is not their id.
+             if a.repo.starts_with("storytold/") {
+-                assert_eq!(a.repo, format!("storytold/{}", a.id));
+                 assert_eq!(a.name.to_lowercase(), a.id);
++                assert_eq!(a.repo, format!("storytold/{}", a.id));
++            }
++            if a.id == LOCALPAINT.id {
++                assert_eq!(a.repo, "Anon5T4R/Local-Paint");
+             }
+         }
+         assert!(by_id(LAUNCHER.id).is_none());
++        assert_eq!(by_id("localpaint").map(|a| a.repo), Some("Anon5T4R/Local-Paint"));
+         assert_eq!(by_id("pdfcraft").map(|a| a.former_ids), Some(&["printcraft"][..]));
+         assert_eq!(by_id("localslides").map(|a| (a.name, a.publisher)), Some(("Local Slides", "Local Slides contributors")));
+         assert_eq!(by_id("localsheets").map(|a| (a.name, a.publisher, a.repo)), Some(("Local Sheets", "Anon5T4R", "Anon5T4R/local-sheets")));
+########## tls.rs ##########
+warning: in the working copy of 'C:\Dev\underworld-apps\local-image\libs\craft-libs\crates\update\src\tls.rs', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'C:\Dev\underworld-apps\local-paint\libs\craft-libs\crates\update\src\tls.rs', LF will be replaced by CRLF the next time Git touches it
+diff --git "a/C:\\Dev\\underworld-apps\\local-image\\libs\\craft-libs\\crates\\update\\src\\tls.rs" "b/C:\\Dev\\underworld-apps\\local-paint\\libs\\craft-libs\\crates\\update\\src\\tls.rs"
+index 44c193c..397f7a5 100644
+--- "a/C:\\Dev\\underworld-apps\\local-image\\libs\\craft-libs\\crates\\update\\src\\tls.rs"
++++ "b/C:\\Dev\\underworld-apps\\local-paint\\libs\\craft-libs\\crates\\update\\src\\tls.rs"
+@@ -1,6 +1,6 @@
+-//! // local-image: provider cripto do rustls no caminho do craft-update.
++//! // local-paint: provider cripto do rustls no caminho do craft-update.
+ //!
+-//! Experimento do Local Image (n├úo ├® padr├úo da su├¡te): as requisi├º├Áes de update (check de
++//! Experimento do Local Paint (n├úo ├® padr├úo da su├¡te): as requisi├º├Áes de update (check de
+ //! release e download do instalador) usam o provider **100% Rust** (`rustls-rustcrypto`, fork
+ //! vendored em `libs/rustls-rustcrypto`) como caminho **├ÜNICO**. Um handshake que falhe vira erro
+ //! normal - vis├¡vel na linha de status do app (bot├úo "Verificar atualiza├º├Áes") e no log de sess├úo -
+########## lib.rs ##########
+warning: in the working copy of 'C:\Dev\underworld-apps\local-paint\libs\craft-libs\crates\update\src\lib.rs', LF will be replaced by CRLF the next time Git touches it
+diff --git "a/C:\\Dev\\underworld-apps\\local-image\\libs\\craft-libs\\crates\\update\\src\\lib.rs" "b/C:\\Dev\\underworld-apps\\local-paint\\libs\\craft-libs\\crates\\update\\src\\lib.rs"
+index 1af719c..ac11488 100644
+--- "a/C:\\Dev\\underworld-apps\\local-image\\libs\\craft-libs\\crates\\update\\src\\lib.rs"
++++ "b/C:\\Dev\\underworld-apps\\local-paint\\libs\\craft-libs\\crates\\update\\src\\lib.rs"
+@@ -12,8 +12,12 @@ mod folders;
+ pub mod http;
+ pub mod install;
+ pub mod manifest;
++pub mod msi_context;
++mod msi_copy;
++mod msi_migrate;
+ pub mod packages;
+ pub mod paths;
++pub mod pins;
+ pub mod platform;
+ #[cfg(windows)]
+ pub mod portable;
+@@ -27,7 +31,7 @@ pub mod source;
+ pub mod status;
+ pub mod suite;
+ pub mod time;
+-// // local-image: provider cripto 100% Rust no caminho do update.
++// // local-paint: provider cripto 100% Rust no caminho do update.
+ pub mod tls;
+ pub mod version;
+ 
+@@ -48,23 +52,15 @@ pub use time::parse_rfc3339;
+ pub use version::{Version, is_newer, parse as parse_version};
+ 
+ #[cfg(feature = "egui")]
+-pub use dialog::{StartupPrompt, StartupPromptResponse};
++pub use dialog::{CheckResultDialog, CheckResultResponse, StartupPrompt, StartupPromptResponse};
+ 
+ /// Checks for an update against GitHub releases for the given app.
+ pub fn check_for_update(app: &App, http: &Http, current_version: &str) -> Result<Option<Release>, String> {
++    let version = self_update::current_version(app, current_version).map(|v| v.to_string());
++    let current_version = version.as_deref().unwrap_or(current_version);
+     let url = format!("https://api.github.com/repos/{}/releases?per_page=30", app.repo);
+     match http.get_api(&url, None)? {
+-        crate::http::Fetched::Body { text, .. } => {
+-            let latest = crate::release::parse_github_release_list(&text, app.repo, false)?;
+-            if let Some(release) = latest
+-                && let Some(rel_v) = &release.version
+-                && let Some(cur_v) = crate::version::parse(current_version)
+-                && crate::version::is_newer(rel_v, &cur_v)
+-            {
+-                return Ok(Some(release));
+-            }
+-            Ok(None)
+-        }
++        crate::http::Fetched::Body { text, .. } => offered_release(&text, app.repo, current_version),
+         crate::http::Fetched::RateLimited { .. } => Err("GitHub's request limit was reached".into()),
+         crate::http::Fetched::NotModified | crate::http::Fetched::NotFound => Ok(None),
+     }
+@@ -75,5 +71,42 @@ pub fn now() -> i64 {
+     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| i64::try_from(d.as_secs()).unwrap_or(i64::MAX))
+ }
+ 
++/// The release in GitHub's release list `json` to offer a copy running `current_version`, if any:
++/// the latest published release, when [`version::offers_update`] says so.
++fn offered_release(json: &str, repo: &str, current_version: &str) -> Result<Option<Release>, String> {
++    let latest = crate::release::parse_github_release_list(json, repo, false)?;
++    Ok(latest.filter(|release| {
++        let running = crate::version::parse(current_version);
++        release.version.as_ref().zip(running.as_ref()).is_some_and(|(rel_v, cur_v)| crate::version::offers_update(rel_v, cur_v))
++    }))
++}
++
+ #[cfg(test)]
+ pub(crate) const TEST_AGENT: &str = "ArtCraft-Launcher-Test/0.0";
++
++#[cfg(test)]
++mod offer_tests {
++    use super::offered_release;
++
++    const REPO: &str = "storytold/photocraft";
++    const LIST: &str = r#"[{"tag_name":"v0.17.0","prerelease":false,"draft":false,"assets":[]},
++        {"tag_name":"v0.16.4","prerelease":false,"draft":false,"assets":[]}]"#;
++
++    fn offered(running: &str) -> Option<String> {
++        offered_release(LIST, REPO, running).unwrap().map(|release| release.tag)
++    }
++
++    #[test]
++    fn a_build_from_main_is_not_offered_the_release_it_already_contains() {
++        assert_eq!(offered("0.17.0-integration.20261029.f5b3f123"), None);
++        assert_eq!(offered("0.16.5-dev"), Some("v0.17.0".into()));
++    }
++
++    #[test]
++    fn releases_and_release_candidates_are_offered_as_before() {
++        assert_eq!(offered("0.17.0-rc.2"), Some("v0.17.0".into()));
++        assert_eq!(offered("0.16.4"), Some("v0.17.0".into()));
++        assert_eq!(offered("0.17.0"), None);
++        assert_eq!(offered("not a version"), None);
++    }
++}
+########## app.rs ##########
+warning: in the working copy of 'C:\Dev\underworld-apps\local-paint\libs\craft-libs\crates\update\src\app.rs', LF will be replaced by CRLF the next time Git touches it
+diff --git "a/C:\\Dev\\underworld-apps\\local-image\\libs\\craft-libs\\crates\\update\\src\\app.rs" "b/C:\\Dev\\underworld-apps\\local-paint\\libs\\craft-libs\\crates\\update\\src\\app.rs"
+index 05dc122..065cf64 100644
+--- "a/C:\\Dev\\underworld-apps\\local-image\\libs\\craft-libs\\crates\\update\\src\\app.rs"
++++ "b/C:\\Dev\\underworld-apps\\local-paint\\libs\\craft-libs\\crates\\update\\src\\app.rs"
+@@ -17,24 +17,47 @@ pub struct App {
+     pub former_names: &'static [&'static str],
+     /// Its 128 px PNG icon, for the menu entry written beside an AppImage. `None`: no icon.
+     pub icon_png: Option<&'static [u8]>,
++    /// Its accent colour (sRGB), for the update prompt's buttons and highlights: the app's brand
++    /// colour, as ArtCraft Launcher shows it. `None`: the default blue.
++    pub accent: Option<[u8; 3]>,
++    /// Who makes it, shown as "by <developer>" in the update prompt. [`DEVELOPER`] unless the app
++    /// says otherwise.
++    pub developer: &'static str,
+     /// Who its Windows Installer packages name as their publisher (`Manufacturer` in the app's
+     /// WiX, the `Publisher` of its uninstall entry). [`UPSTREAM_PUBLISHER`] unless the suite
+     /// entry overrides it: a rebranded app publishes under its own name.
+     pub publisher: &'static str,
+ }
+ 
++/// The developer of every app in the Local suite.
++pub const DEVELOPER: &str = "Anon5T4R";
++
+ /// Who the upstream suite's Windows Installer packages name as their publisher.
+ pub const UPSTREAM_PUBLISHER: &str = "Learning Machines LLC";
+ 
+ impl App {
+     /// An app with no former names and no icon.
+     pub const fn new(id: &'static str, name: &'static str, tagline: &'static str, repo: &'static str) -> Self {
+-        Self { id, name, tagline, repo, former_ids: &[], former_names: &[], icon_png: None, publisher: UPSTREAM_PUBLISHER }
++        Self {
++            id,
++            name,
++            tagline,
++            repo,
++            former_ids: &[],
++            former_names: &[],
++            icon_png: None,
++            accent: None,
++            developer: DEVELOPER,
++            publisher: UPSTREAM_PUBLISHER,
++        }
+     }
+ 
+     /// `ai.storyteller.<id>`: macOS bundle id, Flatpak id and Linux desktop-file id.
++    /// The suite's own app uses its packaging id (`com.localpaint.app`) instead ÔÇö
++    /// the fork's installers, desktop entry and metainfo all use it, and macOS
++    /// self-update detection must match what `Info.plist` carries.
+     pub fn bundle_id(&self) -> String {
+-        format!("ai.storyteller.{}", self.id)
++        if self.id == "localpaint" { "com.localpaint.app".into() } else { format!("ai.storyteller.{}", self.id) }
+     }
+ 
+     pub fn releases_url(&self) -> String {
+########## version.rs ##########
+warning: in the working copy of 'C:\Dev\underworld-apps\local-paint\libs\craft-libs\crates\update\src\version.rs', LF will be replaced by CRLF the next time Git touches it
+diff --git "a/C:\\Dev\\underworld-apps\\local-image\\libs\\craft-libs\\crates\\update\\src\\version.rs" "b/C:\\Dev\\underworld-apps\\local-paint\\libs\\craft-libs\\crates\\update\\src\\version.rs"
+index 0beceef..1915f7b 100644
+--- "a/C:\\Dev\\underworld-apps\\local-image\\libs\\craft-libs\\crates\\update\\src\\version.rs"
++++ "b/C:\\Dev\\underworld-apps\\local-paint\\libs\\craft-libs\\crates\\update\\src\\version.rs"
+@@ -112,6 +112,28 @@ pub fn is_newer(latest: &Version, installed: &Version) -> bool {
+     compare(latest, installed) == Ordering::Greater
+ }
+ 
++/// The pre-release labels the suite publishes, which sort against releases as semver says
++/// (`0.17.0-rc.2` is before `0.17.0`).
++const RELEASE_CHANNELS: [&str; 4] = ["alpha", "beta", "rc", "nightly"];
++
++/// Whether `v` is a build made from source rather than a published release: it has a pre-release
++/// label the suite never publishes (`0.17.0-integration.20261029.f5b3f123`, `0.18.0-dev`).
++pub fn is_local_build(v: &Version) -> bool {
++    let label = v.pre.as_str().split('.').next().unwrap_or_default();
++    !v.pre.is_empty() && !RELEASE_CHANNELS.iter().any(|channel| label.eq_ignore_ascii_case(channel))
++}
++
++/// Whether a copy running `running` should be offered `latest`. As [`is_newer`], except for a
++/// local build: semver puts `0.17.0-integrationÔÇª` before `0.17.0`, but a build from `main` already
++/// holds 0.17.0's changes and more, so replacing it with 0.17.0 is a downgrade. A local build is
++/// only offered a strictly higher `X.Y.Z`.
++pub fn offers_update(latest: &Version, running: &Version) -> bool {
++    if is_local_build(running) {
++        return (latest.major, latest.minor, latest.patch) > (running.major, running.minor, running.patch);
++    }
++    is_newer(latest, running)
++}
++
+ /// Platforms that only record `X.Y.Z` (the MSI ProductVersion, `CFBundleShortVersionString`)
+ /// drop a pre-release suffix. A numeric-only installed version therefore counts as current when it
+ /// matches a pre-release's numbers, rather than nagging forever.
+@@ -133,6 +155,35 @@ mod tests {
+         parse(s).unwrap()
+     }
+ 
++    #[test]
++    fn a_build_from_main_is_never_offered_its_own_release() {
++        let running = v("0.17.0-integration.20261029.f5b3f123");
++        assert!(is_local_build(&running));
++        assert!(!offers_update(&v("0.17.0"), &running));
++        assert!(!offers_update(&v("0.16.4"), &running));
++        assert!(!offers_update(&v("0.17.0-rc.3"), &running));
++        assert!(offers_update(&v("0.17.1"), &running));
++        assert!(offers_update(&v("0.18.0"), &running));
++        assert!(offers_update(&v("1.0.0"), &v("0.18.0-dev")));
++        assert!(!offers_update(&v("0.18.0"), &v("0.18.0-DEV.4")));
++    }
++
++    #[test]
++    fn published_pre_releases_and_releases_order_as_before() {
++        for label in ["0.17.0-rc.2", "0.17.0-beta.1", "0.17.0-alpha", "0.17.0-nightly.20261029", "0.17.0-RC.1"] {
++            let running = v(label);
++            assert!(!is_local_build(&running), "{label}");
++            assert!(offers_update(&v("0.17.0"), &running), "{label}");
++        }
++        assert!(offers_update(&v("0.17.0-rc.3"), &v("0.17.0-rc.2")));
++        assert!(!offers_update(&v("0.17.0-rc.2"), &v("0.17.0-rc.2")));
++        assert!(!is_local_build(&v("0.17.0")));
++        assert!(offers_update(&v("0.17.1"), &v("0.17.0")));
++        assert!(!offers_update(&v("0.17.0"), &v("0.17.0")));
++        assert!(!offers_update(&v("0.16.9"), &v("0.17.0")));
++        assert!(!offers_update(&v("0.17.0+build.5"), &v("0.17.0")));
++    }
++
+     #[test]
+     fn reads_tags_and_platform_spellings() {
+         assert_eq!(v("v0.5.0"), Version::new(0, 5, 0));
