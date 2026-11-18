@@ -91,6 +91,8 @@ fn main() -> eframe::Result<()> {
         options,
         Box::new(move |cc| {
             theme::apply(&cc.egui_ctx, cfg.theme);
+            // Linux: a escolha clara/escura do desktop, que o winit não informa.
+            craft_desktop_theme::follow(&cc.egui_ctx);
             let opened_with_file = initial_file.is_some();
             let mut app = ImageApp::new(cfg, initial_file, opened_with_file);
             // Check de update no arranque: achou release nova, o prompt do
