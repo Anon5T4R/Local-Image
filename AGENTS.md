@@ -15,8 +15,8 @@ Rust puro + egui, app single-crate. Sem conta, sem telemetria, sem dependência 
   AppImage + tar.gz FHS **com `install.sh` na raiz** + deb + rpm), valida o PKGBUILD real
   (`packaging/arch/`, container Arch + `makepkg --printsrcinfo`) e publica. Mínimo local.
   O `installer.nsi` ficou no repo por ora, mas o CI não o usa mais.
-- **Disco local:** nunca deixe `target/` para trás — `cargo clean` após uso local;
-  builds pesados são do CI.
+- **Disco:** no workspace do João vale a política de `target/` do dev-notes (`MEMORY.md` §4 — limpa o que
+  está frio ou feito, mantém durante iteração ativa); fora dele, `cargo clean` ao terminar. Builds pesados são do CI.
 
 ## Estrutura
 - `src/` — app single-crate (`src/pickers.rs`: seletor nativo async, molde do local-pdf)
