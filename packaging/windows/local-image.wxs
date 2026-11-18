@@ -88,6 +88,48 @@
              (HKLM for a per-machine install) under the suite's key to know this is an MSI
              install, so it updates with the new MSI rather than the portable zip. -->
         <RegistryValue Root="HKLM" Key="Software\Anon5T4R\Local Image" Name="InstallDir" Value="[INSTALLFOLDER]" Type="string" />
+
+        <!-- "Open with" and Settings > Default apps, through the Default Programs registration (ProgID,
+             OpenWithProgids, Capabilities, RegisteredApplications). Same list as the Linux MimeType: the formats the viewer opens (IMAGE_EXTS).
+             Never takes over an extension: the default value is left alone and the user chooses. -->
+        <ProgId Id="LocalImage.Image" Description="Image" Icon="LocalImageExe" IconIndex="0" />
+        <RegistryValue Root="HKMU" Key="Software\Classes\LocalImage.Image\shell\open\command" Value="&quot;[#LocalImageExe]&quot; &quot;%1&quot;" Type="string" />
+        <RegistryValue Root="HKMU" Key="Software\Classes\.png\OpenWithProgids" Name="LocalImage.Image" Value="" Type="string" />
+        <RegistryValue Root="HKMU" Key="Software\Classes\.jpg\OpenWithProgids" Name="LocalImage.Image" Value="" Type="string" />
+        <RegistryValue Root="HKMU" Key="Software\Classes\.jpeg\OpenWithProgids" Name="LocalImage.Image" Value="" Type="string" />
+        <RegistryValue Root="HKMU" Key="Software\Classes\.gif\OpenWithProgids" Name="LocalImage.Image" Value="" Type="string" />
+        <RegistryValue Root="HKMU" Key="Software\Classes\.webp\OpenWithProgids" Name="LocalImage.Image" Value="" Type="string" />
+        <RegistryValue Root="HKMU" Key="Software\Classes\.bmp\OpenWithProgids" Name="LocalImage.Image" Value="" Type="string" />
+        <RegistryValue Root="HKMU" Key="Software\Classes\.tif\OpenWithProgids" Name="LocalImage.Image" Value="" Type="string" />
+        <RegistryValue Root="HKMU" Key="Software\Classes\.tiff\OpenWithProgids" Name="LocalImage.Image" Value="" Type="string" />
+        <RegistryValue Root="HKMU" Key="Software\Classes\.ico\OpenWithProgids" Name="LocalImage.Image" Value="" Type="string" />
+        <RegistryValue Root="HKMU" Key="Software\Classes\.jxl\OpenWithProgids" Name="LocalImage.Image" Value="" Type="string" />
+        <RegistryValue Root="HKMU" Key="Software\Classes\Applications\local-image.exe" Name="FriendlyAppName" Value="Local Image" Type="string" />
+        <RegistryValue Root="HKMU" Key="Software\Classes\Applications\local-image.exe\shell\open\command" Value="&quot;[#LocalImageExe]&quot; &quot;%1&quot;" Type="string" />
+        <RegistryValue Root="HKMU" Key="Software\Classes\Applications\local-image.exe\SupportedTypes" Name=".png" Value="" Type="string" />
+        <RegistryValue Root="HKMU" Key="Software\Classes\Applications\local-image.exe\SupportedTypes" Name=".jpg" Value="" Type="string" />
+        <RegistryValue Root="HKMU" Key="Software\Classes\Applications\local-image.exe\SupportedTypes" Name=".jpeg" Value="" Type="string" />
+        <RegistryValue Root="HKMU" Key="Software\Classes\Applications\local-image.exe\SupportedTypes" Name=".gif" Value="" Type="string" />
+        <RegistryValue Root="HKMU" Key="Software\Classes\Applications\local-image.exe\SupportedTypes" Name=".webp" Value="" Type="string" />
+        <RegistryValue Root="HKMU" Key="Software\Classes\Applications\local-image.exe\SupportedTypes" Name=".bmp" Value="" Type="string" />
+        <RegistryValue Root="HKMU" Key="Software\Classes\Applications\local-image.exe\SupportedTypes" Name=".tif" Value="" Type="string" />
+        <RegistryValue Root="HKMU" Key="Software\Classes\Applications\local-image.exe\SupportedTypes" Name=".tiff" Value="" Type="string" />
+        <RegistryValue Root="HKMU" Key="Software\Classes\Applications\local-image.exe\SupportedTypes" Name=".ico" Value="" Type="string" />
+        <RegistryValue Root="HKMU" Key="Software\Classes\Applications\local-image.exe\SupportedTypes" Name=".jxl" Value="" Type="string" />
+        <RegistryValue Root="HKMU" Key="Software\LocalImage\Capabilities" Name="ApplicationName" Value="Local Image" Type="string" />
+        <RegistryValue Root="HKMU" Key="Software\LocalImage\Capabilities" Name="ApplicationDescription" Value="Image viewer" Type="string" />
+        <RegistryValue Root="HKMU" Key="Software\LocalImage\Capabilities" Name="ApplicationIcon" Value="[#LocalImageExe],0" Type="string" />
+        <RegistryValue Root="HKMU" Key="Software\LocalImage\Capabilities\FileAssociations" Name=".png" Value="LocalImage.Image" Type="string" />
+        <RegistryValue Root="HKMU" Key="Software\LocalImage\Capabilities\FileAssociations" Name=".jpg" Value="LocalImage.Image" Type="string" />
+        <RegistryValue Root="HKMU" Key="Software\LocalImage\Capabilities\FileAssociations" Name=".jpeg" Value="LocalImage.Image" Type="string" />
+        <RegistryValue Root="HKMU" Key="Software\LocalImage\Capabilities\FileAssociations" Name=".gif" Value="LocalImage.Image" Type="string" />
+        <RegistryValue Root="HKMU" Key="Software\LocalImage\Capabilities\FileAssociations" Name=".webp" Value="LocalImage.Image" Type="string" />
+        <RegistryValue Root="HKMU" Key="Software\LocalImage\Capabilities\FileAssociations" Name=".bmp" Value="LocalImage.Image" Type="string" />
+        <RegistryValue Root="HKMU" Key="Software\LocalImage\Capabilities\FileAssociations" Name=".tif" Value="LocalImage.Image" Type="string" />
+        <RegistryValue Root="HKMU" Key="Software\LocalImage\Capabilities\FileAssociations" Name=".tiff" Value="LocalImage.Image" Type="string" />
+        <RegistryValue Root="HKMU" Key="Software\LocalImage\Capabilities\FileAssociations" Name=".ico" Value="LocalImage.Image" Type="string" />
+        <RegistryValue Root="HKMU" Key="Software\LocalImage\Capabilities\FileAssociations" Name=".jxl" Value="LocalImage.Image" Type="string" />
+        <RegistryValue Root="HKMU" Key="Software\RegisteredApplications" Name="LocalImage" Value="Software\LocalImage\Capabilities" Type="string" />
       </Component>
     </ComponentGroup>
   </Fragment>

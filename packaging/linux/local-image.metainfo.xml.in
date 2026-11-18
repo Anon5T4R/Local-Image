@@ -56,8 +56,9 @@
     <mediatype>image/webp</mediatype>
     <mediatype>image/bmp</mediatype>
     <mediatype>image/tiff</mediatype>
-    <mediatype>image/avif</mediatype>
-    <mediatype>image/svg+xml</mediatype>
+    <mediatype>image/x-icon</mediatype>
+    <mediatype>image/vnd.microsoft.icon</mediatype>
+    <mediatype>image/jxl</mediatype>
   </provides>
   <releases>
     <release version="@VERSION@" date="@DATE@"/>

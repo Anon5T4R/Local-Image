@@ -11,4 +11,4 @@ Terminal=false
 # O runner nativo não completa o handshake de startup-notification (igual ao local-paint).
 StartupNotify=false
 StartupWMClass=local-image
-MimeType=image/png;image/jpeg;image/gif;image/webp;image/bmp;image/tiff;image/avif;image/x-icon;image/x-tga;image/qoi;image/x-exr;image/vnd.radiance;image/svg+xml;
+MimeType=image/png;image/jpeg;image/gif;image/webp;image/bmp;image/tiff;image/x-icon;image/vnd.microsoft.icon;image/jxl;
