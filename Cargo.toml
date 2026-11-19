@@ -4,6 +4,11 @@ members = ["xtask", "lab-ui"]
 default-members = [".", "lab-ui"]
 exclude = ["libs"]
 
+[workspace.package]
+# Nada da suíte vai ao crates.io: dependência `path` sem versão numa crate publicável reprova o
+# `cargo-deny` (wildcards). Cada membro herda com `publish.workspace = true`.
+publish = false
+
 # Forks vendored (egui 6d518fc, winit a517b38) — receita no AGENTS.md do local-office.
 [patch.crates-io]
 ecolor = { path = "libs/egui/crates/ecolor/" }
@@ -31,7 +36,7 @@ name = "local-image"
 version = "0.5.12"
 edition = "2021"
 license = "GPL-3.0-or-later"
-publish = false
+publish.workspace = true
 repository = "https://github.com/Anon5T4R/Local-Image"
 description = "Visualizador de imagens 100% local e offline — export sempre re-encodado (EXIF nunca sobrevive)"
 
