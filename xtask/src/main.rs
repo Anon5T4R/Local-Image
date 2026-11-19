@@ -111,7 +111,11 @@ fn cargo() -> Command {
 fn run(mut cmd: Command, what: &str) -> Result<(), String> {
     eprintln!("$ {what}");
     let status = cmd.status().map_err(|e| format!("{what}: falhou ao iniciar: {e}"))?;
-    if status.success() { Ok(()) } else { Err(format!("{what}: saiu com {status}")) }
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!("{what}: saiu com {status}"))
+    }
 }
 
 /// Nomes dos pacotes do workspace (`cargo metadata --no-deps`), sem dependências: o objeto de um pacote é
@@ -119,8 +123,7 @@ fn run(mut cmd: Command, what: &str) -> Result<(), String> {
 fn workspace_packages() -> Result<Vec<String>, String> {
     let out = cargo().args(["metadata", "--no-deps", "--format-version", "1"]).output().map_err(|e| format!("cargo metadata: {e}"))?;
     if !out.status.success() {
-        return Err(format!("cargo metadata falhou:
-{}", String::from_utf8_lossy(&out.stderr)));
+        return Err(format!("cargo metadata falhou:\n{}", String::from_utf8_lossy(&out.stderr)));
     }
     let json = String::from_utf8_lossy(&out.stdout);
     let mut names = Vec::new();
