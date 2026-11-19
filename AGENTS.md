@@ -32,7 +32,9 @@ Rust puro + egui, app single-crate. Sem conta, sem telemetria, sem dependência 
 ```
 cargo build --locked                       # debug
 cargo test --locked                        # testes
-cargo xtask version X.Y.Z                  # bump (Cargo.toml, lab-ui, installer.nsi) + lock
+cargo xtask ci                             # o gate local: o mesmo que o CI (fmt, clippy, build, testes, cargo-deny,
+                                           # espelhos do local-libs)
+cargo xtask version set X.Y.Z              # bump (Cargo.toml, lab-ui, installer.nsi) + lock
 cargo xtask check                          # confere as 3 versões sincronizadas
 ```
 

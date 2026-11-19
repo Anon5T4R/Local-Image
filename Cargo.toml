@@ -35,7 +35,7 @@ rustls-rustcrypto = { path = "libs/rustls-rustcrypto" }
 name = "local-image"
 version = "0.5.12"
 edition = "2021"
-license = "GPL-3.0-or-later"
+license = "MIT OR Apache-2.0"
 publish.workspace = true
 repository = "https://github.com/Anon5T4R/Local-Image"
 description = "Visualizador de imagens 100% local e offline — export sempre re-encodado (EXIF nunca sobrevive)"
