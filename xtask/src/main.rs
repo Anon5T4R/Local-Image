@@ -111,11 +111,7 @@ fn cargo() -> Command {
 fn run(mut cmd: Command, what: &str) -> Result<(), String> {
     eprintln!("$ {what}");
     let status = cmd.status().map_err(|e| format!("{what}: falhou ao iniciar: {e}"))?;
-    if status.success() {
-        Ok(())
-    } else {
-        Err(format!("{what}: saiu com {status}"))
-    }
+    if status.success() { Ok(()) } else { Err(format!("{what}: saiu com {status}")) }
 }
 
 /// Nomes dos pacotes do workspace (`cargo metadata --no-deps`), sem dependências: o objeto de um pacote é

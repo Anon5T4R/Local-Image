@@ -46,11 +46,7 @@ pub fn sanitize_path_input(s: &str) -> String {
 pub fn strip_verbatim(s: &str) -> String {
     let Some(rest) = s.strip_prefix(r"\\?\") else { return s.to_string() };
     let b = rest.as_bytes();
-    if b.len() >= 3 && b[0].is_ascii_alphabetic() && b[1] == b':' && (b[2] == b'\\' || b[2] == b'/') {
-        rest.to_string()
-    } else {
-        s.to_string()
-    }
+    if b.len() >= 3 && b[0].is_ascii_alphabetic() && b[1] == b':' && (b[2] == b'\\' || b[2] == b'/') { rest.to_string() } else { s.to_string() }
 }
 
 /// Lista imagens e vídeos da pasta (ordenados sem diferenciar maiúsculas) —

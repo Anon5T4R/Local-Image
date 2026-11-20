@@ -35,7 +35,7 @@ use std::sync::mpsc::{Receiver, Sender};
 
 use eframe::egui;
 use i18n::tr;
-use prefs::{config_dir, Prefs};
+use prefs::{Prefs, config_dir};
 use ui::{begin_dialog, ghost, line, modal_frame, pill};
 use workarea::fit_to_work_area;
 
@@ -119,9 +119,9 @@ fn main() -> eframe::Result<()> {
 fn shell_open(target: &str) -> Result<(), String> {
     #[cfg(windows)]
     {
-        use windows::core::{HSTRING, PCWSTR};
         use windows::Win32::UI::Shell::ShellExecuteW;
         use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+        use windows::core::{HSTRING, PCWSTR};
         let verb = HSTRING::from("open");
         let file = HSTRING::from(target);
         // > 32 = lançou.
@@ -286,10 +286,10 @@ impl ImageApp {
 
     /// Vai para a imagem anterior (`-1`) ou a próxima (`1`), se houver.
     fn step(&mut self, delta: isize) {
-        if let Some(i) = self.idx.and_then(|i| i.checked_add_signed(delta)) {
-            if i < self.files.len() {
-                self.goto(i);
-            }
+        if let Some(i) = self.idx.and_then(|i| i.checked_add_signed(delta))
+            && i < self.files.len()
+        {
+            self.goto(i);
         }
     }
 
@@ -418,11 +418,7 @@ impl ImageApp {
 /// Tamanho exibido da textura com rotação aplicada (90°/270° trocam eixos).
 fn displayed_size(tex: &egui::TextureHandle, rot: u32) -> egui::Vec2 {
     let s = tex.size_vec2();
-    if rot % 2 == 1 {
-        egui::vec2(s.y, s.x)
-    } else {
-        s
-    }
+    if rot % 2 == 1 { egui::vec2(s.y, s.x) } else { s }
 }
 
 /// Quanto da imagem (em px de tela) fica sempre visível por eixo: o pan
@@ -448,11 +444,7 @@ fn clamp_axis(rect_len: f32, size_len: f32, pan: f32) -> f32 {
         let min = MIN_VISIBLE - size_len;
         let max = rect_len - MIN_VISIBLE;
         // Canvas anão (< 2×MIN_VISIBLE) inverte min/max: clamp pânica.
-        if min < max {
-            pan.clamp(min, max)
-        } else {
-            (rect_len - size_len) / 2.0
-        }
+        if min < max { pan.clamp(min, max) } else { (rect_len - size_len) / 2.0 }
     }
 }
 
@@ -542,16 +534,15 @@ impl ImageApp {
             }
         }
         // Se abriu com um arquivo via args, dispara o scan da pasta agora.
-        if let Some(ref p) = self.initial_file {
-            if self.dir.is_empty() {
-                if let Some(parent) = p.parent() {
-                    let dir = parent.to_string_lossy().to_string();
-                    self.dir = dir.clone();
-                    self.request(Job::List(dir));
-                    ctx.request_repaint();
-                    return;
-                }
-            }
+        if let Some(ref p) = self.initial_file
+            && self.dir.is_empty()
+            && let Some(parent) = p.parent()
+        {
+            let dir = parent.to_string_lossy().to_string();
+            self.dir = dir.clone();
+            self.request(Job::List(dir));
+            ctx.request_repaint();
+            return;
         }
 
         // Fullscreen/resize: o tamanho da viewport muda FORA do egui, como
@@ -943,7 +934,7 @@ impl ImageApp {
                     let new_zoom = (self.zoom * factor).clamp(0.05, 40.0);
                     if let Some(m) = response.hover_pos() {
                         let m = m - rect.min; // cursor na área do viewer
-                                              // p_img = (m - pan)/zoom fica fixo em m (base é 1.0 fora do fit):
+                        // p_img = (m - pan)/zoom fica fixo em m (base é 1.0 fora do fit):
                         self.pan = m - (m - self.pan) / self.zoom * new_zoom;
                     }
                     self.zoom = new_zoom;

@@ -116,15 +116,7 @@ fn pill_colored(ui: &mut egui::Ui, label: &str, fill: egui::Color32, ink: egui::
     } else {
         fill.gamma_multiply(0.9)
     };
-    let fill = if outline {
-        if hovered {
-            skin.hover
-        } else {
-            egui::Color32::TRANSPARENT
-        }
-    } else {
-        fill
-    };
+    let fill = if outline { if hovered { skin.hover } else { egui::Color32::TRANSPARENT } } else { fill };
     let stroke = if outline { egui::Stroke::new(1.0_f32, skin.border) } else { egui::Stroke::NONE };
     ui.painter().rect(rect, egui::CornerRadius::same(14), fill, stroke, egui::StrokeKind::Inside);
     let pos = rect.center() - galley.size() / 2.0;
@@ -166,11 +158,7 @@ mod tests {
         let lum = |c: egui::Color32| {
             let lin = |v: u8| {
                 let v = f32::from(v) / 255.0;
-                if v <= 0.04045 {
-                    v / 12.92
-                } else {
-                    ((v + 0.055) / 1.055).powf(2.4)
-                }
+                if v <= 0.04045 { v / 12.92 } else { ((v + 0.055) / 1.055).powf(2.4) }
             };
             0.2126 * lin(c.r()) + 0.7152 * lin(c.g()) + 0.0722 * lin(c.b())
         };

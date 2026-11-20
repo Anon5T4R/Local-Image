@@ -8,7 +8,7 @@ use egui::{Key, KeyboardShortcut, Modifiers};
 
 use crate::i18n::{self, tr, tr_fmt};
 use crate::ui::{begin_dialog, modal_frame};
-use crate::{theme, ImageApp};
+use crate::{ImageApp, theme};
 
 fn shortcut_text(ctx: &egui::Context) -> String {
     ctx.format_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::K))

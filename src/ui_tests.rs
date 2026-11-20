@@ -5,11 +5,11 @@ use std::path::{Path, PathBuf};
 
 use craft_icons::ThemeMode;
 use egui::accesskit::Role;
-use egui_kittest::kittest::Queryable;
 use egui_kittest::Harness;
+use egui_kittest::kittest::Queryable;
 
-use crate::prefs::Prefs;
 use crate::ImageApp;
+use crate::prefs::Prefs;
 
 /// A largura mínima que as capturas de revisão e o teste de barra estreita usam (o app não fixa mínimo:
 /// "Abrir com" numa imagem pequena abre uma janela pequena).
