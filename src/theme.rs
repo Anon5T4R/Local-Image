@@ -86,6 +86,11 @@ pub fn apply(ctx: &egui::Context, mode: ThemeMode) {
     });
 }
 
+/// Quanto do accent entra na lavagem de seleção (chip escolhido, texto selecionado). O texto do chip é o accent
+/// por cima dela, então a lavagem tem de ser clara o bastante para ele passar de 4,5:1 nos dois temas (a 35% dava
+/// 3,5:1).
+const SELECTION_ALPHA: f32 = 0.15;
+
 /// Visuals de um tema a partir dos Tokens (molde do local-office).
 pub(crate) fn visuals(t: &Tokens) -> egui::Visuals {
     let mut v = if t.dark { egui::Visuals::dark() } else { egui::Visuals::light() };
@@ -97,7 +102,7 @@ pub(crate) fn visuals(t: &Tokens) -> egui::Visuals {
     v.window_stroke = egui::Stroke::new(1.0, t.border_strong);
     v.window_corner_radius = egui::CornerRadius::same(8);
     v.menu_corner_radius = egui::CornerRadius::same(6);
-    v.selection.bg_fill = t.accent.gamma_multiply(0.35);
+    v.selection.bg_fill = t.accent.gamma_multiply(SELECTION_ALPHA);
     v.selection.stroke = egui::Stroke::new(1.0, t.accent);
     v.hyperlink_color = t.accent;
     v.widgets.noninteractive.bg_stroke = egui::Stroke::new(1.0, t.border);

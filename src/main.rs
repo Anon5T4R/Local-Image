@@ -1035,9 +1035,9 @@ impl ImageApp {
                 .anchor(egui::Align2::RIGHT_TOP, [-8.0, 56.0])
                 .show(ctx, |ui| {
                     begin_dialog(ui);
-                    // Na janela estreita o painel não passa da borda: valor comprido (lente, software) quebra a
-                    // linha (a moldura come 40 pt e a margem da âncora 16).
-                    ui.set_max_width((ctx.viewport_rect().width() - 56.0).max(120.0));
+                    // Largura fixa (a moldura come 40 pt e a margem da âncora 16): na janela estreita o painel não
+                    // passa da borda, e valor comprido (lente, software) quebra a linha em vez de alargá-lo.
+                    ui.set_width((ctx.viewport_rect().width() - 56.0).clamp(120.0, 260.0));
                     match &self.exif {
                         Some(entries) if entries.is_empty() => {
                             ui.label(egui::RichText::new(tr("no EXIF")).weak());

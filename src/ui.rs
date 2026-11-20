@@ -8,6 +8,10 @@ const FIELD_MARGIN: egui::Margin = egui::Margin::symmetric(10, 6);
 /// Altura externa mínima de um campo de uma linha.
 const FIELD_MIN_HEIGHT: f32 = 30.0;
 
+/// Opacidade do texto "apagado" (ícones dos botões fantasma, tinta de desabilitado): 70% passa de 4,5:1 sobre o
+/// fundo nos dois temas (a 60% dava 4,1:1 no claro).
+const MUTED_ALPHA: f32 = 0.7;
+
 /// Cores derivadas do tema vigente (nada fixo).
 #[derive(Clone, Copy)]
 pub(crate) struct Skin {
@@ -42,7 +46,7 @@ impl Skin {
             accent,
             on_accent: if luminance(accent) > 150.0 { egui::Color32::BLACK } else { egui::Color32::WHITE },
             text,
-            muted: text.gamma_multiply(0.6),
+            muted: text.gamma_multiply(MUTED_ALPHA),
             border: if v.dark_mode { egui::Color32::from_white_alpha(30) } else { egui::Color32::from_black_alpha(30) },
             hover: if v.dark_mode { egui::Color32::from_white_alpha(18) } else { egui::Color32::from_black_alpha(14) },
         }
@@ -152,6 +156,14 @@ fn ghost_ink(ui: &mut egui::Ui, label: &str, ink: egui::Color32) -> egui::Respon
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::theme::{Tokens, visuals};
+
+    /// `top` (com alfa) pintada sobre `bottom` (opaca).
+    fn over(top: egui::Color32, bottom: egui::Color32) -> egui::Color32 {
+        let keep = 255 - u16::from(top.a());
+        let mix = |t: u8, b: u8| u8::try_from(u16::from(t) + (u16::from(b) * keep + 127) / 255).unwrap_or(u8::MAX);
+        egui::Color32::from_rgb(mix(top.r(), bottom.r()), mix(top.g(), bottom.g()), mix(top.b(), bottom.b()))
+    }
 
     /// Contraste WCAG entre duas cores opacas.
     fn contrast(a: egui::Color32, b: egui::Color32) -> f32 {
@@ -166,16 +178,33 @@ mod tests {
         (hi + 0.05) / (lo + 0.05)
     }
 
-    /// O texto do pill primário (accent cheio) e os links passam de 4,5:1 nos dois temas.
+    /// O texto do pill primário (accent cheio, como o pill o pinta) e os links passam de 4,5:1 nos dois temas.
     #[test]
     fn the_primary_pill_and_links_are_legible_in_both_themes() {
-        for tokens in [crate::theme::Tokens::light(), crate::theme::Tokens::dark()] {
-            let skin = Skin::from_visuals(&crate::theme::visuals(&tokens));
+        for tokens in [Tokens::light(), Tokens::dark()] {
+            let skin = Skin::from_visuals(&visuals(&tokens));
             assert_eq!(skin.accent, tokens.accent, "o pill usa o accent cheio, não a seleção translúcida");
-            let pill = contrast(skin.on_accent, skin.accent);
+            let pill_fill = over(skin.accent.gamma_multiply(0.9), tokens.base);
+            let pill = contrast(skin.on_accent, pill_fill);
             let link = contrast(skin.accent, tokens.base);
             assert!(pill >= 4.5, "texto do pill: {pill:.2}:1 (dark={})", tokens.dark);
             assert!(link >= 4.5, "link sobre a base: {link:.2}:1 (dark={})", tokens.dark);
+        }
+    }
+
+    /// O chip escolhido (accent sobre a lavagem de seleção) e o texto apagado dos ícones passam de 4,5:1.
+    #[test]
+    fn the_selected_chip_and_the_muted_ink_are_legible_in_both_themes() {
+        for tokens in [Tokens::light(), Tokens::dark()] {
+            let v = visuals(&tokens);
+            let skin = Skin::from_visuals(&v);
+            // Os chips moram no cartão dos diálogos (`input`); o texto apagado, também na barra (`base`).
+            let chip = contrast(v.selection.stroke.color, over(v.selection.bg_fill, tokens.input));
+            assert!(chip >= 4.5, "chip escolhido: {chip:.2}:1 (dark={})", tokens.dark);
+            for ground in [tokens.input, tokens.base] {
+                let muted = contrast(over(skin.muted, ground), ground);
+                assert!(muted >= 4.5, "texto apagado: {muted:.2}:1 (dark={})", tokens.dark);
+            }
         }
     }
 }

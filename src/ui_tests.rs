@@ -299,7 +299,8 @@ fn the_top_bar_does_not_overlap_at_medium_widths() {
     }
 }
 
-/// As larguras das capturas de revisão (estreita e média), com a imagem aberta, nos dois temas.
+/// As larguras das capturas de revisão (estreita e média), com a imagem aberta, nos dois temas: barra, Configurações,
+/// paleta e painel EXIF.
 #[test]
 fn review_shots() {
     for (width, label) in [(NARROW, "340"), (1100.0, "1100")] {
@@ -312,6 +313,11 @@ fn review_shots() {
             press(&mut harness, egui::Key::Escape, egui::Modifiers::NONE);
             click_bar(&mut harness, SEARCH);
             shot(&mut harness, &format!("palette-{name}-{label}"));
+            press(&mut harness, egui::Key::Escape, egui::Modifiers::NONE);
+            harness.state_mut().show_exif = true;
+            harness.state_mut().exif = Some(long_exif());
+            harness.run_steps(6);
+            shot(&mut harness, &format!("exif-{name}-{label}"));
         }
     }
 }
@@ -402,7 +408,7 @@ fn every_dialog_fits_the_narrow_window() {
             let mut app = app_with_image("dialogs", Prefs::new(language, mode));
             open(&mut app);
             let mut harness = harness_sized(app, NARROW, true);
-            harness.run_steps(3);
+            harness.run_steps(6);
             shot(&mut harness, &format!("dialog-{name}-{language}-{NARROW}"));
             assert_inside(&harness, &format!("{name}/{language}"), NARROW);
         }
