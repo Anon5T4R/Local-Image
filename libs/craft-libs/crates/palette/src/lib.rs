@@ -123,12 +123,14 @@ impl Palette {
             ran = Some(command.id.clone());
         }
 
+        // One measure in every app, but never wider than the window (a narrow window keeps a 16 pt gutter each side).
+        let width = Self::WIDTH.min(ctx.content_rect().width() - 32.0).max(160.0);
         let area = egui::Area::new(egui::Id::unique("craft-palette"))
             .order(egui::Order::Foreground)
             .anchor(egui::Align2::CENTER_TOP, egui::vec2(0.0, 72.0))
             .show(ctx, |ui| {
                 egui::Frame::popup(ui.style()).show(ui, |ui| {
-                    ui.set_width(Self::WIDTH);
+                    ui.set_width(width);
                     let edit = ui.add(egui::TextEdit::singleline(&mut self.query).hint_text(labels.placeholder).desired_width(f32::INFINITY));
                     if std::mem::take(&mut self.focus) {
                         edit.request_focus();

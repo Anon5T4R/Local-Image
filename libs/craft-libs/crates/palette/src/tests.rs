@@ -135,3 +135,22 @@ fn the_box_has_focus_and_a_long_list_scrolls_to_the_selection() {
     harness.run_steps(2);
     assert_eq!(harness.state().ran, vec!["c40".to_string()]);
 }
+
+/// In a window narrower than the palette's measure, the box fits inside it (with the gutter) instead of being cut.
+#[test]
+fn the_palette_fits_a_narrow_window() {
+    let mut palette = Palette::default();
+    palette.open();
+    let state = State { palette, commands: commands(), ran: Vec::new() };
+    let mut harness = Harness::builder().with_size(egui::vec2(340.0, 500.0)).build_ui_state(
+        |ui, state: &mut State| {
+            let labels = Labels { placeholder: "Buscar comandos", empty: "Nada encontrado" };
+            let ctx = ui.ctx().clone();
+            let _ = state.palette.show(&ctx, &labels, &state.commands);
+        },
+        state,
+    );
+    harness.run_steps(3);
+    let input = harness.get_by_role(egui::accesskit::Role::TextInput).rect();
+    assert!(input.left() >= 0.0 && input.right() <= 340.0, "the box stays inside a 340 pt window: {input:?}");
+}
