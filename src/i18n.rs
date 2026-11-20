@@ -119,6 +119,18 @@ mod tests {
         assert!(missing.is_empty(), "sem tradução:\n{}", missing.join("\n"));
     }
 
+    /// Os rótulos do EXIF passam por `tr` na tela, fora de um literal `tr("…")`: conferidos aqui.
+    #[test]
+    fn every_exif_label_is_translated() {
+        for code in ["pt-br", "es"] {
+            set_language(code);
+            for (_, label) in crate::img::EXIF_LABELS {
+                assert!(tr(label) != *label || *label == "ISO", "{code}: {label} sem tradução");
+            }
+        }
+        set_language("en");
+    }
+
     /// Os textos iguais em todo idioma (siglas, nomes de formato).
     fn untranslated_on_purpose(text: &str) -> bool {
         matches!(text, "Error")

@@ -165,7 +165,7 @@ enum Job {
 enum Done {
     List(Result<Vec<PathBuf>, String>),
     Decode { path: PathBuf, result: Result<(egui::ColorImage, Option<img::ImageInfo>), String> },
-    Exif(Vec<(String, String)>),
+    Exif(Vec<(&'static str, String)>),
     Export(Result<PathBuf, String>),
 }
 
@@ -201,7 +201,7 @@ struct ImageApp {
     /// Última imagem decodificada (path → textura) — trocou de imagem,
     /// trocou de textura (sem cache infinito: RAM manda).
     tex: Option<(PathBuf, egui::TextureHandle)>,
-    exif: Option<Vec<(String, String)>>,
+    exif: Option<Vec<(&'static str, String)>>,
     /// Canal geral: List / Exif / Export.
     rx: Option<Receiver<Done>>,
     /// Canal dedicado do Decode — não pode ser sobrescrito pelo Exif.
@@ -1045,7 +1045,7 @@ impl ImageApp {
                         Some(entries) => {
                             egui::Grid::new("exif").num_columns(2).spacing([10.0, 4.0]).show(ui, |ui| {
                                 for (k, v) in entries {
-                                    ui.label(egui::RichText::new(k).small().weak());
+                                    ui.label(egui::RichText::new(tr(k)).small().weak());
                                     ui.add(egui::Label::new(v).wrap());
                                     ui.end_row();
                                 }

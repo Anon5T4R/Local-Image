@@ -91,19 +91,22 @@ pub fn image_info(path: &Path) -> Result<ImageInfo, String> {
     Ok(ImageInfo { width, height, size_bytes })
 }
 
+/// As tags EXIF mostradas e o rótulo de cada uma (em inglês: a chave do catálogo).
+pub const EXIF_LABELS: &[(exif::Tag, &str)] = &[
+    (exif::Tag::Make, "Make"),
+    (exif::Tag::Model, "Camera"),
+    (exif::Tag::LensModel, "Lens"),
+    (exif::Tag::DateTimeOriginal, "Date taken"),
+    (exif::Tag::ExposureTime, "Exposure"),
+    (exif::Tag::FNumber, "Aperture"),
+    (exif::Tag::ISOSpeed, "ISO"),
+    (exif::Tag::FocalLength, "Focal length"),
+];
+
 /// Metadados EXIF legíveis (vazio se a imagem não tiver) — mesma seleção de
-/// tags do oficial.
-pub fn exif_info(path: &Path) -> Vec<(String, String)> {
-    let labels: &[(exif::Tag, &str)] = &[
-        (exif::Tag::Make, "Fabricante"),
-        (exif::Tag::Model, "Câmera"),
-        (exif::Tag::LensModel, "Lente"),
-        (exif::Tag::DateTimeOriginal, "Data"),
-        (exif::Tag::ExposureTime, "Exposição"),
-        (exif::Tag::FNumber, "Abertura"),
-        (exif::Tag::ISOSpeed, "ISO"),
-        (exif::Tag::FocalLength, "Focal"),
-    ];
+/// tags do oficial. O rótulo sai em inglês, que é a chave do catálogo: a tela traduz com `tr`.
+pub fn exif_info(path: &Path) -> Vec<(&'static str, String)> {
+    let labels = EXIF_LABELS;
     let file = match std::fs::File::open(path) {
         Ok(f) => f,
         Err(_) => return Vec::new(),
@@ -117,7 +120,7 @@ pub fn exif_info(path: &Path) -> Vec<(String, String)> {
         .iter()
         .filter_map(|(tag, label)| {
             let f = reader.get_field(*tag, exif::In::PRIMARY)?;
-            Some((label.to_string(), f.display_value().to_string()))
+            Some((*label, f.display_value().to_string()))
         })
         .collect()
 }

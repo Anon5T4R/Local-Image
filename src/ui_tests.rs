@@ -374,16 +374,16 @@ fn assert_inside(harness: &Harness<'_, ImageApp>, what: &str, width: f32) {
 }
 
 /// Um EXIF com valores compridos (lente, software, data), como as câmeras gravam.
-fn long_exif() -> Vec<(String, String)> {
+fn long_exif() -> Vec<(&'static str, String)> {
     [
-        ("Fabricante", "Canon"),
-        ("Modelo", "Canon EOS 5D Mark IV com empunhadura de bateria"),
-        ("Lente", "EF24-70mm f/2.8L II USM extensor 1.4x III com adaptador de montagem"),
+        ("Make", "Canon"),
+        ("Camera", "Canon EOS 5D Mark IV com empunhadura de bateria"),
+        ("Lens", "EF24-70mm f/2.8L II USM extensor 1.4x III com adaptador de montagem"),
         ("Software", "Adobe Photoshop Lightroom Classic 13.0 (Windows) build 20231120"),
-        ("Data", "2026:11:20 15:08:01"),
+        ("Date taken", "2026:11:20 15:08:01"),
     ]
     .iter()
-    .map(|(k, v)| (k.to_string(), v.to_string()))
+    .map(|(k, v)| (*k, v.to_string()))
     .collect()
 }
 
