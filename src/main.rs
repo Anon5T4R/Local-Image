@@ -20,7 +20,11 @@
 
 mod img;
 mod pickers;
+mod shell;
 mod ui;
+
+#[cfg(test)]
+mod ui_tests;
 
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{Receiver, Sender};
@@ -90,6 +94,8 @@ fn main() -> eframe::Result<()> {
         APP_ID,
         options,
         Box::new(move |cc| {
+            // O carregador de SVG dos ícones da suíte (craft-icons).
+            egui_extras::install_image_loaders(&cc.egui_ctx);
             theme::apply(&cc.egui_ctx, cfg.theme);
             // Linux: a escolha clara/escura do desktop, que o winit não informa.
             craft_desktop_theme::follow(&cc.egui_ctx);
@@ -229,6 +235,16 @@ struct ImageApp {
     /// Verificação e instalação de atualização (craft_update): check no
     /// arranque/pedido, prompt egui próprio e self-update em thread própria.
     updater: craft_update::updater::Updater,
+    /// Janela de Configurações (idioma, tema, Sobre) — a engrenagem e a paleta abrem (`shell.rs`).
+    settings_open: bool,
+    /// Paleta de comandos da suíte (lupa e Ctrl+K).
+    palette: craft_palette::Palette,
+    /// Onde o config.json é gravado (os testes apontam para uma pasta temporária).
+    config_file: PathBuf,
+    /// "Sair" da paleta: o quadro responde com `ViewportCommand::Close`.
+    quit: bool,
+    /// Zoom pedido pela paleta (fator): o painel central aplica ancorado no centro da imagem.
+    zoom_request: Option<f32>,
 }
 
 impl ImageApp {
@@ -256,14 +272,61 @@ impl ImageApp {
             last_vp: None,
             fs_cover: false,
             updater: craft_update::updater::Updater::new(&craft_update::suite::LOCALIMAGE, CURRENT_VERSION),
+            settings_open: false,
+            palette: craft_palette::Palette::default(),
+            config_file: config::config_dir(APP_ID).join("config.json"),
+            quit: false,
+            zoom_request: None,
         }
     }
 
-    /// Verifica atualizações agora (botão "Verificar atualizações"). O
-    /// resultado sai na barra de status do rodapé; release nova abre o
-    /// prompt do próprio updater.
-    fn check_updates(&mut self, ctx: &egui::Context) {
-        self.updater.check_now(ctx);
+    /// Vai para a imagem anterior (`-1`) ou a próxima (`1`), se houver.
+    fn step(&mut self, delta: isize) {
+        if let Some(i) = self.idx.and_then(|i| i.checked_add_signed(delta)) {
+            if i < self.files.len() {
+                self.goto(i);
+            }
+        }
+    }
+
+    /// Gira o viewer em quartos de volta horários (`1` = horário, `3` = anti-horário).
+    fn rotate(&mut self, quarters: u32) {
+        self.rot = (self.rot + quarters) % 4;
+        self.refit();
+    }
+
+    /// Exporta a imagem atual re-encodada, sem EXIF (ao lado do original).
+    fn export_clean(&mut self) {
+        if let Some(p) = self.current() {
+            let p = p.clone();
+            self.request(Job::Export(p, (self.rot % 4) * 90));
+        }
+    }
+
+    /// Pede a janela do tamanho da imagem atual (já com a rotação aplicada).
+    fn resize_to_image(&mut self) {
+        let size = self.tex.as_ref().map(|(_, t)| displayed_size(t, self.rot));
+        if let Some(s) = size {
+            self.window_fix = Some([s.x, s.y]);
+        }
+    }
+
+    /// Alterna a tela cheia. ENTRAR preenche a tela (cover): sai do fit e deixa o zoom "cover" pendente — o avail
+    /// da viewport em tela cheia só existe DEPOIS que o SO aplica o comando, então é consumido no painel central.
+    /// SAIR volta pro fit (contain).
+    fn toggle_fullscreen(&mut self, ctx: &egui::Context) {
+        let fs = ctx.input(|i| i.viewport().fullscreen.unwrap_or(false));
+        ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(!fs));
+        if fs {
+            self.refit();
+            self.fs_cover = false;
+        } else {
+            self.fit = false;
+            self.zoom = 1.0;
+            self.pan = egui::Vec2::ZERO;
+            self.fs_cover = true;
+        }
+        ctx.request_repaint();
     }
 
     /// Enfileira um job nos canais genéricos (List / Exif / Export).
@@ -439,15 +502,21 @@ fn video_placeholder(ui: &mut egui::Ui, rect: egui::Rect, hint: &str, name: &str
     painter.galley(name_pos, name_galley, weak);
 }
 
-impl eframe::App for ImageApp {
-    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+impl ImageApp {
+    /// Um quadro da interface: o `eframe::App::ui` e os testes de UI (`ui_tests.rs`) chamam isto.
+    fn frame(&mut self, ui: &mut egui::Ui) {
         let ctx = &ui.ctx().clone();
+        if self.quit {
+            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+        }
 
         // Updater (craft_update): drena o check/instalação pendente (o tick
         // acorda a UI por si). Resultado de um check PEDIDO sai na barra de
         // status do rodapé; release nova abre o prompt do updater lá embaixo.
         self.updater.tick(ctx);
+        // Com as Configurações abertas o resultado aparece nelas (shell.rs), não no rodapé.
         match self.updater.status().clone() {
+            _ if self.settings_open => {}
             craft_update::updater::Status::UpToDate => {
                 self.status = i18n::t(self.cfg.lang, Key::UpToDate).to_string();
                 self.updater.dismiss_status();
@@ -513,21 +582,25 @@ impl eframe::App for ImageApp {
             }
         }
 
+        // Ctrl+K: a paleta (o Image não dá outro uso ao atalho).
+        if craft_palette::Palette::shortcut_pressed(ctx) {
+            self.palette.toggle();
+        }
+        // Com as Configurações ou a paleta abertas, os atalhos do viewer ficam quietos (Esc e setas são delas).
+        let overlay = self.settings_open || self.palette.is_open();
+
         // Atalhos de LETRA só fora de campo de texto (o rodapé tem o
         // caminho da pasta: digitar "f" não pode disparar tela cheia).
-        let kb_free = !ctx.egui_wants_keyboard_input();
+        let kb_free = !ctx.egui_wants_keyboard_input() && !overlay;
 
         // R = redimensiona a janela pra imagem ATUAL (abriu com uma,
         // navegou pras setas — a janela acompanha a nova). Dims já com a
         // rotação aplicada (90° troca os eixos).
         if kb_free && ctx.input(|i| i.key_pressed(egui::Key::R)) {
-            let sz = self.tex.as_ref().map(|(_, t)| displayed_size(t, self.rot));
-            if let Some(s) = sz {
-                self.window_fix = Some([s.x, s.y]);
-                // O resize roda no PRÓXIMO frame — sem isso o app idle não
-                // repinta e o comando nunca executa.
-                ctx.request_repaint();
-            }
+            self.resize_to_image();
+            // O resize roda no PRÓXIMO frame — sem isso o app idle não
+            // repinta e o comando nunca executa.
+            ctx.request_repaint();
         }
 
         // [ / ] = girar 90° (anti-horário / horário) — a rotação é do
@@ -535,12 +608,10 @@ impl eframe::App for ImageApp {
         // usa o mesmo ângulo).
         if kb_free && self.tex.is_some() {
             if ctx.input(|i| i.key_pressed(egui::Key::OpenBracket)) {
-                self.rot = (self.rot + 3) % 4;
-                self.refit();
+                self.rotate(3);
             }
             if ctx.input(|i| i.key_pressed(egui::Key::CloseBracket)) {
-                self.rot = (self.rot + 1) % 4;
-                self.refit();
+                self.rotate(1);
             }
         }
 
@@ -656,21 +727,13 @@ impl eframe::App for ImageApp {
         }
 
         // Atalhos de navegação (mesmos do oficial).
-        if ctx.input(|i| i.key_pressed(egui::Key::ArrowLeft)) {
-            if let Some(i) = self.idx {
-                if i > 0 {
-                    self.goto(i - 1);
-                }
-            }
+        if !overlay && ctx.input(|i| i.key_pressed(egui::Key::ArrowLeft)) {
+            self.step(-1);
         }
-        if ctx.input(|i| i.key_pressed(egui::Key::ArrowRight)) {
-            if let Some(i) = self.idx {
-                if i + 1 < self.files.len() {
-                    self.goto(i + 1);
-                }
-            }
+        if !overlay && ctx.input(|i| i.key_pressed(egui::Key::ArrowRight)) {
+            self.step(1);
         }
-        if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+        if !overlay && ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
             if self.chrome && self.show_exif {
                 self.show_exif = false;
             } else {
@@ -694,18 +757,7 @@ impl eframe::App for ImageApp {
         // agendado o app idle não refaz o layout e a imagem continuava no
         // tamanho da janela antiga.
         if kb_free && ctx.input(|i| i.key_pressed(egui::Key::F)) {
-            let fs = ctx.input(|i| i.viewport().fullscreen.unwrap_or(false));
-            ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(!fs));
-            if fs {
-                self.refit();
-                self.fs_cover = false;
-            } else {
-                self.fit = false;
-                self.zoom = 1.0;
-                self.pan = egui::Vec2::ZERO;
-                self.fs_cover = true;
-            }
-            ctx.request_repaint();
+            self.toggle_fullscreen(ctx);
         }
         // C = centralizar mantendo o zoom (o offset materializa como pan,
         // igual ao primeiro scroll saindo do fit); 0 = fit completo.
@@ -725,22 +777,23 @@ impl eframe::App for ImageApp {
         let chrome = self.chrome;
         if chrome {
             egui::containers::Panel::top("topo").show(ui, |ui| {
+                // Janela estreita: o contador sai primeiro e, mais estreita ainda, os botões de girar, exportar e
+                // centralizar (a paleta tem os três) — assim nada cobre o título nem os botões da suíte.
+                let width = ctx.viewport_rect().width();
+                let (show_count, show_tools) = (width >= 480.0, width >= 440.0);
                 ui.horizontal(|ui| {
                     ui.strong("Local Image");
-                    let n = self.idx.map(|i| format!("{}/{}", i + 1, self.files.len())).unwrap_or_default();
-                    ui.label(egui::RichText::new(n).small().weak());
+                    if show_count {
+                        let n = self.idx.map(|i| format!("{}/{}", i + 1, self.files.len())).unwrap_or_default();
+                        ui.label(egui::RichText::new(n).small().weak());
+                    }
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let (cfg_changed, _) = lab_ui::settings_ui(ui, &mut self.cfg, false);
-                        if cfg_changed {
-                            theme::apply(ctx, self.cfg.theme);
-                            let _ = config::save(APP_ID, &self.cfg);
-                        }
-                        if ghost(ui, i18n::t(self.cfg.lang, Key::CheckUpdates)).clicked() {
-                            self.check_updates(ctx);
+                        self.shell_buttons(ui);
+                        if !show_tools {
+                            return;
                         }
                         if self.tex.is_some() && ghost(ui, "⟳").on_hover_text(i18n::t(self.cfg.lang, Key::RotateHint)).clicked() {
-                            self.rot = (self.rot + 1) % 4;
-                            self.refit();
+                            self.rotate(1);
                         }
                         // Export de privacidade em texto: o glifo "⤴" não
                         // dizia nada e o painel EXIF agora é a tecla "i".
@@ -751,10 +804,7 @@ impl eframe::App for ImageApp {
                                 .on_hover_text(i18n::t(self.cfg.lang, Key::ExportCleanHint))
                                 .clicked()
                         {
-                            if let Some(p) = self.current() {
-                                let p = p.clone();
-                                self.request(Job::Export(p, (self.rot % 4) * 90));
-                            }
+                            self.export_clean();
                         }
                         if self.tex.is_some() && ghost(ui, "⊙").on_hover_text(i18n::t(self.cfg.lang, Key::CenterHint)).clicked() {
                             self.center_pending = true;
@@ -895,6 +945,19 @@ impl eframe::App for ImageApp {
                     self.zoom = new_zoom;
                 }
 
+                // Zoom pedido pela paleta: o mesmo caminho da roda, ancorado no centro do viewer.
+                if let Some(factor) = self.zoom_request.take() {
+                    if self.fit {
+                        self.pan = base_off;
+                        self.zoom *= base_scale;
+                        self.fit = false;
+                    }
+                    let new_zoom = (self.zoom * factor).clamp(0.05, 40.0);
+                    let m = rect.size() / 2.0;
+                    self.pan = m - (m - self.pan) / self.zoom * new_zoom;
+                    self.zoom = new_zoom;
+                }
+
                 // Pan com arrastar. Primeiro arraste também materializa
                 // (mesma razão do scroll — o draw fora do fit é zoom*1.0).
                 if response.dragged() {
@@ -1000,6 +1063,9 @@ impl eframe::App for ImageApp {
                 });
         }
 
+        self.settings_modal(ctx);
+        self.palette_ui(ctx);
+
         // Prompt de update (craft_update): por cima de tudo. "Atualizar e
         // reiniciar" pede o fechamento pelo caminho limpo (ViewportCommand::
         // Close) — o helper do craft_update instala e relança depois que o
@@ -1017,6 +1083,12 @@ impl eframe::App for ImageApp {
         if self.rx.is_some() || self.decode_rx.is_some() {
             ctx.request_repaint_after(std::time::Duration::from_millis(150));
         }
+    }
+}
+
+impl eframe::App for ImageApp {
+    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        self.frame(ui);
     }
 }
 

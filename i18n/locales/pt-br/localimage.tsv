@@ -148,3 +148,29 @@
 	rotate 90° ([ and ] also rotate)	girar 90° ([ e ] também giram)
 	re-encodes without EXIF — saves nome.lab.png next to the original	re-encoda sem EXIF — salva nome.lab.png ao lado
 	center (C)	centralizar (C)
+	Automatic	Automático
+	Light	Claro
+	Dark	Escuro
+	Theme: {mode}	Tema: {mode}
+	Search commands	Buscar comandos
+	Search commands ({shortcut})	Buscar comandos ({shortcut})
+	No command matches.	Nenhum comando encontrado.
+	Check for Updates…	Verificar atualizações…
+	About Local Image	Sobre o Local Image
+	version {version}	versão {version}
+	You are on the newest version.	Você está na versão mais recente.
+	Exit	Sair
+	Help	Ajuda
+	View	Exibir
+	Open folder…	Abrir pasta…
+	Next image	Próxima imagem
+	Previous image	Imagem anterior
+	Zoom in	Ampliar
+	Zoom out	Reduzir
+	Fit to window	Ajustar à janela
+	Center image	Centralizar imagem
+	Rotate left	Girar para a esquerda
+	Rotate right	Girar para a direita
+	Full screen	Tela cheia
+	Resize window to image	Janela do tamanho da imagem
+	EXIF panel	Painel EXIF

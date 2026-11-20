@@ -88,7 +88,7 @@
 	Add attachment	Añadir adjunto
 	Save attachment	Guardar
 	no attachments	sin adjuntos
-	Settings	Ajustes
+	Settings	Configuración
 	Global hotkey	Atajo global
 	Set…	Definir…
 	Start with system	Iniciar con el sistema
@@ -148,3 +148,29 @@
 	rotate 90° ([ and ] also rotate)	girar 90° ([ y ] también giran)
 	re-encodes without EXIF — saves nome.lab.png next to the original	recodifica sin EXIF — guarda nome.lab.png al lado
 	center (C)	centrar (C)
+	Automatic	Automático
+	Light	Claro
+	Dark	Oscuro
+	Theme: {mode}	Tema: {mode}
+	Search commands	Buscar comandos
+	Search commands ({shortcut})	Buscar comandos ({shortcut})
+	No command matches.	Ningún comando coincide.
+	Check for Updates…	Buscar actualizaciones…
+	About Local Image	Acerca de Local Image
+	version {version}	versión {version}
+	You are on the newest version.	Estás en la versión más reciente.
+	Exit	Salir
+	Help	Ayuda
+	View	Ver
+	Open folder…	Abrir carpeta…
+	Next image	Imagen siguiente
+	Previous image	Imagen anterior
+	Zoom in	Acercar
+	Zoom out	Alejar
+	Fit to window	Ajustar a la ventana
+	Center image	Centrar imagen
+	Rotate left	Girar a la izquierda
+	Rotate right	Girar a la derecha
+	Full screen	Pantalla completa
+	Resize window to image	Ventana del tamaño de la imagen
+	EXIF panel	Panel EXIF
