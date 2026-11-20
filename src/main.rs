@@ -34,7 +34,7 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc::{Receiver, Sender};
 
 use eframe::egui;
-use i18n::tr;
+use i18n::{tr, tr_fmt};
 use prefs::{Prefs, config_dir};
 use ui::{begin_dialog, ghost, line, modal_frame, pill};
 use workarea::fit_to_work_area;
@@ -213,7 +213,7 @@ struct ImageApp {
     zoom: f32,
     pan: egui::Vec2,
     fit: bool,
-    /// Pedido de "centralizar mantendo o zoom" (tecla C / botão ⊙): o offset
+    /// Pedido de "centralizar mantendo o zoom" (tecla C / botão ◎): o offset
     /// depende do `avail` do painel central, então é consumido lá dentro.
     center_pending: bool,
     show_exif: bool,
@@ -665,7 +665,7 @@ impl ImageApp {
                     }
                     Done::Exif(entries) => self.exif = Some(entries),
                     Done::Export(Ok(dst)) => {
-                        self.status = format!("✓ {}", dst.display());
+                        self.status = tr_fmt("exported: {path}", &[("path", &dst.display().to_string())]);
                     }
                     Done::Export(Err(e)) => self.status = format!("⚠ {e}"),
                     // Decode viaja só no canal dedicado (`decode_rx`).
@@ -807,7 +807,7 @@ impl ImageApp {
                         {
                             self.export_clean();
                         }
-                        if self.tex.is_some() && ghost(ui, "⊙").on_hover_text(tr("center (C)")).clicked() {
+                        if self.tex.is_some() && ghost(ui, "◎").on_hover_text(tr("center (C)")).clicked() {
                             self.center_pending = true;
                         }
                     });
@@ -829,8 +829,9 @@ impl ImageApp {
                         // `align`: o campo vive num layout da direita pra
                         // esquerda, mas caminho é conteúdo LTR — sem isso o
                         // texto digitado encostava à direita.
-                        let resp =
-                            ui.add(line(&mut self.dir).hint_text(r"C:\...\fotos").align(egui::Align2::LEFT_CENTER).desired_width(f32::INFINITY));
+                        let resp = ui
+                            .add(line(&mut self.dir).hint_text(r"C:\...\fotos").align(egui::Align2::LEFT_CENTER).desired_width(f32::INFINITY))
+                            .accessible_name(tr("Folder path"));
                         // Enter abre a pasta: o TextEdit singleline perde o
                         // foco no Enter, então o pedido chega como lost_focus.
                         if resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
@@ -1034,6 +1035,9 @@ impl ImageApp {
                 .anchor(egui::Align2::RIGHT_TOP, [-8.0, 56.0])
                 .show(ctx, |ui| {
                     begin_dialog(ui);
+                    // Na janela estreita o painel não passa da borda: valor comprido (lente, software) quebra a
+                    // linha (a moldura come 40 pt e a margem da âncora 16).
+                    ui.set_max_width((ctx.viewport_rect().width() - 56.0).max(120.0));
                     match &self.exif {
                         Some(entries) if entries.is_empty() => {
                             ui.label(egui::RichText::new(tr("no EXIF")).weak());
@@ -1042,7 +1046,7 @@ impl ImageApp {
                             egui::Grid::new("exif").num_columns(2).spacing([10.0, 4.0]).show(ui, |ui| {
                                 for (k, v) in entries {
                                     ui.label(egui::RichText::new(k).small().weak());
-                                    ui.label(v);
+                                    ui.add(egui::Label::new(v).wrap());
                                     ui.end_row();
                                 }
                             });

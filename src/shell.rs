@@ -150,8 +150,12 @@ impl ImageApp {
         let mut list = vec![
             Command::new("file.open_folder", tr("Open folder…"), file),
             Command::new("file.export_clean", tr("Export clean"), file).enabled(has_image),
-            Command::new("view.previous", tr("Previous image"), view).shortcut("←").enabled(self.idx.is_some_and(|i| i > 0)),
-            Command::new("view.next", tr("Next image"), view).shortcut("→").enabled(self.idx.is_some_and(|i| i + 1 < self.files.len())),
+            Command::new("view.previous", tr("Previous image"), view)
+                .shortcut(Key::ArrowLeft.symbol_or_name())
+                .enabled(self.idx.is_some_and(|i| i > 0)),
+            Command::new("view.next", tr("Next image"), view)
+                .shortcut(Key::ArrowRight.symbol_or_name())
+                .enabled(self.idx.is_some_and(|i| i + 1 < self.files.len())),
             Command::new("view.zoom_in", tr("Zoom in"), view).enabled(has_image),
             Command::new("view.zoom_out", tr("Zoom out"), view).enabled(has_image),
             Command::new("view.fit", tr("Fit to window"), view).shortcut("0").enabled(has_image),

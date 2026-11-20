@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use craft_icons::ThemeMode;
 use egui::accesskit::Role;
 use egui_kittest::Harness;
-use egui_kittest::kittest::Queryable;
+use egui_kittest::kittest::{NodeT, Queryable};
 
 use crate::ImageApp;
 use crate::prefs::Prefs;
@@ -43,28 +43,23 @@ fn test_texture(ctx: &egui::Context) -> egui::TextureHandle {
     ctx.load_texture("view", egui::ColorImage::new([w, h], pixels), egui::TextureOptions::default())
 }
 
-// O kittest não tem o provedor de fontes do sistema: ⟳, ⊙ e ← viram "tofu" nos testes. A checagem de
-// acessibilidade fica desligada: os botões só-ícone da suíte ganham nome pela dica, e a do kittest não a vê.
+// O kittest falha se algum texto da tela cair numa fonte sem o glyph (a "caixinha") ou se um controle ficar sem nome
+// para leitores de tela: é o guarda dos emojis e da acessibilidade.
 fn harness_sized(app: ImageApp, width: f32, with_image: bool) -> Harness<'static, ImageApp> {
-    Harness::builder()
-        .with_size(egui::vec2(width, 640.0))
-        .with_step_dt(1.0 / 60.0)
-        .allow_missing_glyphs()
-        .with_accessibility_check(false)
-        .build_ui_state(
-            move |ui, app: &mut ImageApp| {
-                egui_extras::install_image_loaders(ui.ctx());
-                // O idioma vale por thread (a interface roda numa só): cada teste fixa o seu a cada quadro.
-                crate::i18n::set_language(&app.prefs.language);
-                crate::theme::apply(ui.ctx(), app.prefs.mode());
-                if with_image && app.tex.is_none() {
-                    let name = app.files.get(app.idx.unwrap_or(0)).cloned().unwrap_or_default();
-                    app.tex = Some((name, test_texture(ui.ctx())));
-                }
-                app.frame(ui);
-            },
-            app,
-        )
+    Harness::builder().with_size(egui::vec2(width, 640.0)).with_step_dt(1.0 / 60.0).build_ui_state(
+        move |ui, app: &mut ImageApp| {
+            egui_extras::install_image_loaders(ui.ctx());
+            // O idioma vale por thread (a interface roda numa só): cada teste fixa o seu a cada quadro.
+            crate::i18n::set_language(&app.prefs.language);
+            crate::theme::apply(ui.ctx(), app.prefs.mode());
+            if with_image && app.tex.is_none() {
+                let name = app.files.get(app.idx.unwrap_or(0)).cloned().unwrap_or_default();
+                app.tex = Some((name, test_texture(ui.ctx())));
+            }
+            app.frame(ui);
+        },
+        app,
+    )
 }
 
 fn harness(app: ImageApp) -> Harness<'static, ImageApp> {
@@ -352,4 +347,110 @@ fn single_letter_shortcuts_ignore_ctrl_and_alt() {
     assert!(harness.state().show_exif, "I sozinho abre o EXIF");
     press(&mut harness, egui::Key::CloseBracket, egui::Modifiers::NONE);
     assert_eq!(harness.state().rot, 1, "] sozinho gira");
+}
+
+/// Todo nó da tela, em coordenadas do accesskit, dentro da janela de `width` pontos.
+fn assert_inside(harness: &Harness<'_, ImageApp>, what: &str, width: f32) {
+    for node in harness.root().children_recursive() {
+        // O texto de um campo corre além da borda do próprio campo (o egui o recorta ao desenhar): vale o nó do campo.
+        if node.accesskit_node().role() == Role::TextRun {
+            continue;
+        }
+        let Some(rect) = node.accesskit_node().bounding_box() else { continue };
+        if rect.width() > 0.0 {
+            assert!(
+                rect.x0 >= -0.5 && rect.x1 <= f64::from(width) + 0.5,
+                "{what}: {:?} fora da janela de {width}: {rect:?}",
+                node.accesskit_node().role()
+            );
+        }
+    }
+}
+
+/// Um EXIF com valores compridos (lente, software, data), como as câmeras gravam.
+fn long_exif() -> Vec<(String, String)> {
+    [
+        ("Fabricante", "Canon"),
+        ("Modelo", "Canon EOS 5D Mark IV com empunhadura de bateria"),
+        ("Lente", "EF24-70mm f/2.8L II USM extensor 1.4x III com adaptador de montagem"),
+        ("Software", "Adobe Photoshop Lightroom Classic 13.0 (Windows) build 20231120"),
+        ("Data", "2026:11:20 15:08:01"),
+    ]
+    .iter()
+    .map(|(k, v)| (k.to_string(), v.to_string()))
+    .collect()
+}
+
+/// Cada diálogo e janela do app cabe na largura mínima: nenhum nó passa da borda, com a imagem aberta.
+#[test]
+fn every_dialog_fits_the_narrow_window() {
+    type Open = fn(&mut ImageApp);
+    let dialogs: [(&str, Open); 4] = [
+        ("settings", |app| app.settings_open = true),
+        ("exif", |app| {
+            app.show_exif = true;
+            app.exif = Some(long_exif());
+        }),
+        ("exif-empty", |app| {
+            app.show_exif = true;
+            app.exif = Some(Vec::new());
+        }),
+        ("palette", |app| app.palette.open()),
+    ];
+    for (name, open) in dialogs {
+        for (language, mode) in [("pt-br", ThemeMode::Dark), ("es", ThemeMode::Light)] {
+            let mut app = app_with_image("dialogs", Prefs::new(language, mode));
+            open(&mut app);
+            let mut harness = harness_sized(app, NARROW, true);
+            harness.run_steps(3);
+            shot(&mut harness, &format!("dialog-{name}-{language}-{NARROW}"));
+            assert_inside(&harness, &format!("{name}/{language}"), NARROW);
+        }
+    }
+}
+
+/// Todo campo de texto e combobox se anuncia por um nome (leitor de tela), não só pelo texto de dica.
+#[test]
+fn every_field_has_a_name() {
+    let mut app = app_with_image("names", Prefs::new("en", ThemeMode::Dark));
+    app.settings_open = true;
+    let harness = harness_sized(app, 700.0, true);
+    let mut seen = 0;
+    for role in [Role::TextInput, Role::ComboBox] {
+        for node in harness.get_all_by_role(role) {
+            seen += 1;
+            let name = node.accesskit_node().label().unwrap_or_default();
+            assert!(!name.trim().is_empty(), "{role:?} sem nome: {:?}", node.rect());
+        }
+    }
+    assert_eq!(seen, 2, "o campo da pasta e o combo de idioma");
+}
+
+/// A paleta, com a imagem aberta, fica dentro da janela estreita e da média.
+#[test]
+fn the_palette_fits_narrow_and_medium_windows() {
+    for width in [NARROW, 500.0] {
+        let mut harness = harness_sized(app_with_image("palette-narrow", Prefs::new("en", ThemeMode::Dark)), width, true);
+        harness.run_steps(2);
+        click_bar(&mut harness, SEARCH);
+        let rows: Vec<egui::Rect> = harness.get_all_by_role(Role::ListBoxOption).map(|node| node.rect()).collect();
+        assert!(!rows.is_empty());
+        for rect in &rows {
+            assert!(rect.min.x >= 0.0 && rect.max.x <= width, "linha da paleta fora da janela de {width}: {rect:?}");
+        }
+        assert_inside(&harness, "palette", width);
+    }
+}
+
+/// O rodapé (campo da pasta, "Open" e o status) cabe na janela mínima, e um caminho comprido no status corta com "…"
+/// em vez de passar da borda.
+#[test]
+fn the_footer_and_a_long_path_fit_the_narrow_window() {
+    let mut app = app_with_image("footer", Prefs::new("pt-br", ThemeMode::Light));
+    app.dir = r"C:\Users\qa\Pictures\Viagens\2026\Lisboa e arredores\Fotos selecionadas para impressão".into();
+    app.status = r"exportado: C:\Users\qa\Pictures\Viagens\2026\Lisboa e arredores\Fotos selecionadas para impressão\IMG_20261120_150801_com_nome_muito_comprido.lab.png".into();
+    let mut harness = harness_sized(app, NARROW, true);
+    harness.run_steps(3);
+    shot(&mut harness, "footer-long-340");
+    assert_inside(&harness, "footer", NARROW);
 }
