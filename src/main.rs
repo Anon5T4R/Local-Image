@@ -158,7 +158,7 @@ enum Job {
     Exif(PathBuf),
     /// Export de privacidade: re-encoda girado `deg` (múltiplo de 90 — a
     /// rotação corrente do viewer) como PNG ao lado do original
-    /// (`nome.lab.png`) — EXIF nunca sobrevive.
+    /// (`nome.clean.png`) — EXIF nunca sobrevive.
     Export(PathBuf, u32),
 }
 
@@ -187,7 +187,7 @@ fn spawn_job(job: Job, tx: Sender<Done>) {
             let _ = tx.send(Done::Exif(img::exif_info(&path)));
         }
         Job::Export(src, deg) => {
-            let dst = src.with_extension("lab.png");
+            let dst = src.with_extension("clean.png");
             let _ = tx.send(Done::Export(img::export(&src, &dst, deg, None, 90).map(|_| dst)));
         }
     });
@@ -802,7 +802,7 @@ impl ImageApp {
                         // decode no ar só dariam "⚠ decodificar" ao clicar.
                         if self.tex.is_some()
                             && pill(ui, tr("Export clean"), false)
-                                .on_hover_text(tr("re-encodes without EXIF — saves nome.lab.png next to the original"))
+                                .on_hover_text(tr("re-encodes without EXIF — saves name.clean.png next to the original"))
                                 .clicked()
                         {
                             self.export_clean();

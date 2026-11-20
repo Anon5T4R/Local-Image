@@ -454,7 +454,7 @@ fn the_palette_fits_narrow_and_medium_windows() {
 fn the_footer_and_a_long_path_fit_the_narrow_window() {
     let mut app = app_with_image("footer", Prefs::new("pt-br", ThemeMode::Light));
     app.dir = r"C:\Users\qa\Pictures\Viagens\2026\Lisboa e arredores\Fotos selecionadas para impressão".into();
-    app.status = r"exportado: C:\Users\qa\Pictures\Viagens\2026\Lisboa e arredores\Fotos selecionadas para impressão\IMG_20261120_150801_com_nome_muito_comprido.lab.png".into();
+    app.status = r"exportado: C:\Users\qa\Pictures\Viagens\2026\Lisboa e arredores\Fotos selecionadas para impressão\IMG_20261120_150801_com_nome_muito_comprido.clean.png".into();
     let mut harness = harness_sized(app, NARROW, true);
     harness.run_steps(3);
     shot(&mut harness, "footer-long-340");
