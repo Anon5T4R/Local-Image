@@ -46,7 +46,7 @@ winresource = "0.1"
 
 [dependencies]
 eframe = "0.37"
-egui = "0.37"
+egui = { version = "0.37", features = ["default_fonts", "monochrome_emoji_fonts"] }
 # 0.25.9+ = API de hooks que o jxl-image-rs-integration exige (`image::hooks`).
 image = "0.25.9"
 # JPEG XL (decode): jxl-rs — o decoder usado por Chrome/Firefox, 100% Rust,
