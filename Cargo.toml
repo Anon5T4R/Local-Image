@@ -1,7 +1,7 @@
 [workspace]
 resolver = "3"
-members = ["xtask", "lab-ui"]
-default-members = [".", "lab-ui"]
+members = ["xtask"]
+default-members = ["."]
 exclude = ["libs"]
 
 [workspace.package]
@@ -45,6 +45,8 @@ description = "Visualizador de imagens 100% local e offline — export sempre re
 winresource = "0.1"
 
 [dependencies]
+# Catálogos de idiomas da interface (texto em inglês como chave): fonte no local-libs, espelhada pelo sync.ps1.
+craft-i18n = { path = "libs/craft-libs/crates/i18n" }
 eframe = "0.37"
 egui = { version = "0.37", features = ["default_fonts", "monochrome_emoji_fonts"] }
 # 0.25.9+ = API de hooks que o jxl-image-rs-integration exige (`image::hooks`).
@@ -54,7 +56,6 @@ image = "0.25.9"
 # (Encode JXL avaliado e vetado: jxl-encoder é AGPL; deny.toml só permite
 # deps permissivas.)
 jxl-image-rs-integration = "0.8"
-lab-ui = { path = "lab-ui" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # EXIF só-leitura do painel de metadados (o export NUNCA copia EXIF)

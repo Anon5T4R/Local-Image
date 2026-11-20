@@ -3,13 +3,12 @@
 
 use std::path::{Path, PathBuf};
 
+use craft_icons::ThemeMode;
 use egui::accesskit::Role;
 use egui_kittest::kittest::Queryable;
 use egui_kittest::Harness;
-use lab_ui::config::Config;
-use lab_ui::i18n::Lang;
-use lab_ui::theme::Appearance;
 
+use crate::prefs::Prefs;
 use crate::ImageApp;
 
 /// A largura mínima que as capturas de revisão e o teste de barra estreita usam (o app não fixa mínimo:
@@ -22,16 +21,16 @@ fn scratch(name: &str) -> PathBuf {
     std::env::temp_dir().join(format!("local-image-ui-{name}-{nanos}"))
 }
 
-fn app(name: &str, cfg: Config) -> ImageApp {
-    let mut app = ImageApp::new(cfg, None, false);
+fn app(name: &str, prefs: Prefs) -> ImageApp {
+    let mut app = ImageApp::new(prefs, None, false);
     app.config_file = scratch(name).join("config.json");
     app
 }
 
 /// Um app com três "fotos" na lista (a segunda aberta) e uma textura própria: a barra mostra o contador, o
 /// girar, o exportar e o centralizar, e os comandos de imagem da paleta ficam ligados.
-fn app_with_image(name: &str, cfg: Config) -> ImageApp {
-    let mut app = app(name, cfg);
+fn app_with_image(name: &str, prefs: Prefs) -> ImageApp {
+    let mut app = app(name, prefs);
     app.files = ["a.png", "b.png", "c.png"].iter().map(PathBuf::from).collect();
     app.idx = Some(1);
     app
@@ -55,7 +54,9 @@ fn harness_sized(app: ImageApp, width: f32, with_image: bool) -> Harness<'static
         .build_ui_state(
             move |ui, app: &mut ImageApp| {
                 egui_extras::install_image_loaders(ui.ctx());
-                lab_ui::theme::apply(ui.ctx(), app.cfg.theme);
+                // O idioma vale por thread (a interface roda numa só): cada teste fixa o seu a cada quadro.
+                crate::i18n::set_language(&app.prefs.language);
+                crate::theme::apply(ui.ctx(), app.prefs.mode());
                 if with_image && app.tex.is_none() {
                     let name = app.files.get(app.idx.unwrap_or(0)).cloned().unwrap_or_default();
                     app.tex = Some((name, test_texture(ui.ctx())));
@@ -123,17 +124,17 @@ fn shot(harness: &mut Harness<'_, ImageApp>, name: &str) {
 /// O botão de tema da barra gira Automático -> Claro -> Escuro -> Automático e grava a escolha.
 #[test]
 fn the_theme_button_cycles_the_three_modes() {
-    let mut harness = harness(app("theme", Config::default()));
-    assert_eq!(harness.state().cfg.theme, Appearance::System);
+    let mut harness = harness(app("theme", Prefs::default()));
+    assert_eq!(harness.state().prefs.mode(), ThemeMode::System);
     click_bar(&mut harness, THEME);
-    assert_eq!(harness.state().cfg.theme, Appearance::Light);
+    assert_eq!(harness.state().prefs.mode(), ThemeMode::Light);
     click_bar(&mut harness, THEME);
-    assert_eq!(harness.state().cfg.theme, Appearance::Dark);
+    assert_eq!(harness.state().prefs.mode(), ThemeMode::Dark);
     click_bar(&mut harness, THEME);
-    assert_eq!(harness.state().cfg.theme, Appearance::System);
+    assert_eq!(harness.state().prefs.mode(), ThemeMode::System);
     // Cada troca foi gravada: o arquivo de teste (nunca o real) guarda o modo atual.
-    let saved = lab_ui::config::load_from(&harness.state().config_file);
-    assert_eq!(saved.theme, Appearance::System);
+    let saved = Prefs::load_from(&harness.state().config_file);
+    assert_eq!(saved.mode(), ThemeMode::System);
 }
 
 /// Uma preferência de tema gravada por versões antigas (id que a casca não conhece) abre no Automático.
@@ -143,31 +144,31 @@ fn an_old_theme_id_falls_back_to_automatic() {
     std::fs::create_dir_all(&dir).expect("temp dir");
     let file = dir.join("config.json");
     std::fs::write(&file, r#"{"theme":"PunkPrincess","lang":"En"}"#).expect("write config");
-    let cfg = lab_ui::config::load_from(&file);
-    assert_eq!(cfg.theme, Appearance::System);
-    assert_eq!(cfg.lang, Lang::En);
+    let prefs = Prefs::load_from(&file);
+    assert_eq!(prefs.mode(), ThemeMode::System);
+    assert_eq!(prefs.language, "en");
 }
 
 /// A engrenagem abre as Configurações; lá o idioma troca e o tema vira pelas três opções.
 #[test]
 fn the_gear_opens_settings_with_language_and_theme() {
-    let mut harness = harness(app("gear", Config { theme: Appearance::Dark, lang: Lang::En }));
+    let mut harness = harness(app("gear", Prefs::new("en", ThemeMode::Dark)));
     click_bar(&mut harness, GEAR);
     assert!(harness.state().settings_open);
     harness.get_by_label("About Local Image");
     shot(&mut harness, "settings-dark");
     harness.get_by_label("Light").click();
     harness.run_steps(2);
-    assert_eq!(harness.state().cfg.theme, Appearance::Light);
+    assert_eq!(harness.state().prefs.mode(), ThemeMode::Light);
     harness.get_by_label("Automatic").click();
     harness.run_steps(2);
-    assert_eq!(harness.state().cfg.theme, Appearance::System);
+    assert_eq!(harness.state().prefs.mode(), ThemeMode::System);
     // O idioma sai da barra e mora aqui: o combo troca para o português.
     harness.get_by_role(Role::ComboBox).click();
     harness.run_steps(2);
-    harness.get_by_label("Português").click();
+    harness.get_by_label("Português (Brasil)").click();
     harness.run_steps(2);
-    assert_eq!(harness.state().cfg.lang, Lang::Pt);
+    assert_eq!(harness.state().prefs.language, "pt-br");
     harness.get_by_label("Sobre o Local Image");
     // Esc fecha a janela.
     press(&mut harness, egui::Key::Escape, egui::Modifiers::NONE);
@@ -177,7 +178,7 @@ fn the_gear_opens_settings_with_language_and_theme() {
 /// A lupa e o Ctrl+K abrem a paleta; Enter roda o comando escolhido.
 #[test]
 fn the_search_icon_and_ctrl_k_open_the_palette_and_run_a_command() {
-    let mut harness = harness(app("palette", Config { theme: Appearance::Light, lang: Lang::En }));
+    let mut harness = harness(app("palette", Prefs::new("en", ThemeMode::Light)));
     assert!(!harness.state().palette.is_open());
     click_bar(&mut harness, SEARCH);
     assert!(harness.state().palette.is_open());
@@ -196,7 +197,7 @@ fn the_search_icon_and_ctrl_k_open_the_palette_and_run_a_command() {
 /// Uma imagem aberta liga os comandos de imagem da paleta, e um comando gira o viewer como o atalho.
 #[test]
 fn a_palette_command_rotates_the_open_image() {
-    let mut harness = harness_sized(app_with_image("rotate", Config { theme: Appearance::Dark, lang: Lang::En }), 700.0, true);
+    let mut harness = harness_sized(app_with_image("rotate", Prefs::new("en", ThemeMode::Dark)), 700.0, true);
     harness.run_steps(2);
     let enabled: Vec<(String, bool)> = harness.state().commands().into_iter().map(|c| (c.id, c.enabled)).collect();
     for id in ["view.previous", "view.next", "view.zoom_in", "view.rotate_right", "file.export_clean"] {
@@ -227,7 +228,7 @@ fn a_palette_command_rotates_the_open_image() {
 /// Sem imagem aberta, só os comandos que não dependem dela ficam ligados.
 #[test]
 fn image_commands_are_off_without_an_image() {
-    let app = app("empty", Config::default());
+    let app = app("empty", Prefs::default());
     for command in app.commands() {
         let needs_image = matches!(
             command.id.as_str(),
@@ -249,7 +250,7 @@ fn image_commands_are_off_without_an_image() {
 /// "Exit" na paleta pede o encerramento (o quadro responde com Close).
 #[test]
 fn exit_in_the_palette_asks_to_quit() {
-    let mut harness = harness(app("exit", Config { theme: Appearance::Dark, lang: Lang::En }));
+    let mut harness = harness(app("exit", Prefs::new("en", ThemeMode::Dark)));
     press(&mut harness, egui::Key::K, egui::Modifiers::COMMAND);
     harness.input_mut().events.push(egui::Event::Text("exit".into()));
     harness.run_steps(2);
@@ -260,7 +261,7 @@ fn exit_in_the_palette_asks_to_quit() {
 /// Com a paleta aberta, as setas e as letras do viewer não navegam nem giram (a paleta é dona delas).
 #[test]
 fn viewer_shortcuts_stay_quiet_while_the_palette_is_open() {
-    let mut harness = harness_sized(app_with_image("quiet", Config { theme: Appearance::Light, lang: Lang::En }), 700.0, true);
+    let mut harness = harness_sized(app_with_image("quiet", Prefs::new("en", ThemeMode::Light)), 700.0, true);
     harness.run_steps(2);
     click_bar(&mut harness, SEARCH);
     assert!(harness.state().palette.is_open());
@@ -273,7 +274,7 @@ fn viewer_shortcuts_stay_quiet_while_the_palette_is_open() {
 /// Os botões da barra continuam inteiros e fora do título na largura estreita, com a imagem aberta.
 #[test]
 fn the_top_bar_fits_a_narrow_window() {
-    let mut harness = harness_sized(app_with_image("narrow", Config { theme: Appearance::Light, lang: Lang::Pt }), NARROW, true);
+    let mut harness = harness_sized(app_with_image("narrow", Prefs::new("pt-br", ThemeMode::Light)), NARROW, true);
     harness.run_steps(2);
     let title = harness.get_by_label("Local Image").rect();
     let rects = bar_buttons(&harness);
@@ -288,7 +289,7 @@ fn the_top_bar_fits_a_narrow_window() {
 #[test]
 fn the_top_bar_does_not_overlap_at_medium_widths() {
     for width in [400.0_f32, 439.0, 440.0, 479.0, 480.0, 600.0] {
-        let mut harness = harness_sized(app_with_image("medium", Config { theme: Appearance::Light, lang: Lang::Pt }), width, true);
+        let mut harness = harness_sized(app_with_image("medium", Prefs::new("pt-br", ThemeMode::Light)), width, true);
         harness.run_steps(2);
         let mut rects = bar_buttons(&harness);
         // O "Exportar limpa" (largo) entra na conta: está na faixa da barra e não é só-ícone.
@@ -307,8 +308,8 @@ fn the_top_bar_does_not_overlap_at_medium_widths() {
 #[test]
 fn review_shots() {
     for (width, label) in [(NARROW, "340"), (1100.0, "1100")] {
-        for (appearance, name) in [(Appearance::Light, "light"), (Appearance::Dark, "dark")] {
-            let mut harness = harness_sized(app_with_image("shots", Config { theme: appearance, lang: Lang::En }), width, true);
+        for (mode, name) in [(ThemeMode::Light, "light"), (ThemeMode::Dark, "dark")] {
+            let mut harness = harness_sized(app_with_image("shots", Prefs::new("en", mode)), width, true);
             harness.run_steps(2);
             shot(&mut harness, &format!("bar-{name}-{label}"));
             click_bar(&mut harness, GEAR);

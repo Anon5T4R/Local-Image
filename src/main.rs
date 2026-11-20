@@ -1,7 +1,7 @@
 //! Local Image — visualizador de imagens 100% local e offline.
 //! Viewer + EXIF + export re-encodado (privacidade: EXIF nunca sobrevive).
-//! Núcleo (`img.rs`) portado do LocalImage oficial; promovido do lab-image
-//! (egui-lab) pra repo standalone da suíte Local.
+//! Núcleo de decodificação e export em `img.rs`; idiomas em `i18n.rs`, preferências em `prefs.rs`, cores em
+//! `theme.rs`, a casca da suíte (engrenagem, tema, paleta) em `shell.rs`.
 //!
 //! Visualização: a image crate decodifica → textura egui; zoom por roda do
 //! mouse com âncora no cursor, pan com arrastar, encaixe na janela (tecla
@@ -18,10 +18,14 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod i18n;
 mod img;
 mod pickers;
+mod prefs;
 mod shell;
+mod theme;
 mod ui;
+mod workarea;
 
 #[cfg(test)]
 mod ui_tests;
@@ -30,11 +34,10 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc::{Receiver, Sender};
 
 use eframe::egui;
-use lab_ui::config::{self, Config};
-use lab_ui::i18n::{self, Key};
-use lab_ui::theme;
-use lab_ui::workarea::fit_to_work_area;
+use i18n::tr;
+use prefs::{config_dir, Prefs};
 use ui::{begin_dialog, ghost, line, modal_frame, pill};
+use workarea::fit_to_work_area;
 
 const APP_ID: &str = "local-image";
 const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -67,7 +70,8 @@ fn main() -> eframe::Result<()> {
         std::process::exit(i32::from(result.is_err()));
     }
 
-    let cfg = config::load(APP_ID);
+    let prefs = Prefs::load_from(&config_dir(APP_ID).join("config.json"));
+    i18n::set_language(&prefs.language);
 
     // "Abrir com" do Windows manda o caminho como primeiro arg.
     // canonicalize normaliza o casing/curto-caminho (o match com a listagem
@@ -96,11 +100,11 @@ fn main() -> eframe::Result<()> {
         Box::new(move |cc| {
             // O carregador de SVG dos ícones da suíte (craft-icons).
             egui_extras::install_image_loaders(&cc.egui_ctx);
-            theme::apply(&cc.egui_ctx, cfg.theme);
+            theme::apply(&cc.egui_ctx, prefs.mode());
             // Linux: a escolha clara/escura do desktop, que o winit não informa.
             craft_desktop_theme::follow(&cc.egui_ctx);
             let opened_with_file = initial_file.is_some();
-            let mut app = ImageApp::new(cfg, initial_file, opened_with_file);
+            let mut app = ImageApp::new(prefs, initial_file, opened_with_file);
             // Check de update no arranque: achou release nova, o prompt do
             // updater abre sozinho (craft_update::dialog).
             app.updater.check_at_start(&cc.egui_ctx);
@@ -190,7 +194,7 @@ fn spawn_job(job: Job, tx: Sender<Done>) {
 }
 
 struct ImageApp {
-    cfg: Config,
+    prefs: Prefs,
     dir: String,
     files: Vec<PathBuf>,
     idx: Option<usize>,
@@ -248,9 +252,9 @@ struct ImageApp {
 }
 
 impl ImageApp {
-    fn new(cfg: Config, initial_file: Option<PathBuf>, opened_with_file: bool) -> Self {
+    fn new(prefs: Prefs, initial_file: Option<PathBuf>, opened_with_file: bool) -> Self {
         Self {
-            cfg,
+            prefs,
             dir: String::new(),
             files: Vec::new(),
             idx: None,
@@ -274,7 +278,7 @@ impl ImageApp {
             updater: craft_update::updater::Updater::new(&craft_update::suite::LOCALIMAGE, CURRENT_VERSION),
             settings_open: false,
             palette: craft_palette::Palette::default(),
-            config_file: config::config_dir(APP_ID).join("config.json"),
+            config_file: config_dir(APP_ID).join("config.json"),
             quit: false,
             zoom_request: None,
         }
@@ -363,7 +367,7 @@ impl ImageApp {
             // com o placeholder do painel central.
             if img::is_video(&path) {
                 self.status = match open_path(&path) {
-                    Ok(()) => format!("▶ {}", i18n::t(self.cfg.lang, Key::VideoHint)),
+                    Ok(()) => format!("▶ {}", tr("video — opened in the system player")),
                     Err(e) => format!("⚠ {e}"),
                 };
                 // Busca num `let` separado: o iterador empresta `files` e
@@ -518,7 +522,7 @@ impl ImageApp {
         match self.updater.status().clone() {
             _ if self.settings_open => {}
             craft_update::updater::Status::UpToDate => {
-                self.status = i18n::t(self.cfg.lang, Key::UpToDate).to_string();
+                self.status = tr("up to date").to_string();
                 self.updater.dismiss_status();
             }
             craft_update::updater::Status::Failed(e) => {
@@ -572,7 +576,7 @@ impl ImageApp {
 
         // Ajuste da janela pro tamanho da imagem ("Abrir com" no boot e
         // tecla R): px→points, clamp na área útil (taskbar descontada) e
-        // centralização — helper compartilhado do lab-ui (workarea.rs).
+        // centralização — `workarea.rs`.
         if let Some([w, h]) = self.window_fix.take() {
             let fullscreen = ctx.input(|i| i.viewport().fullscreen.unwrap_or(false));
             if !fullscreen {
@@ -726,7 +730,7 @@ impl ImageApp {
             ctx.request_repaint_after(std::time::Duration::from_millis(150));
         }
 
-        // Atalhos de navegação (mesmos do oficial).
+        // Atalhos de navegação.
         if !overlay && ctx.input(|i| i.key_pressed(egui::Key::ArrowLeft)) {
             self.step(-1);
         }
@@ -792,7 +796,7 @@ impl ImageApp {
                         if !show_tools {
                             return;
                         }
-                        if self.tex.is_some() && ghost(ui, "⟳").on_hover_text(i18n::t(self.cfg.lang, Key::RotateHint)).clicked() {
+                        if self.tex.is_some() && ghost(ui, "⟳").on_hover_text(tr("rotate 90° ([ and ] also rotate)")).clicked() {
                             self.rotate(1);
                         }
                         // Export de privacidade em texto: o glifo "⤴" não
@@ -800,13 +804,13 @@ impl ImageApp {
                         // A guarda acompanha o ⟳/⊙ ao lado (`tex`): vídeo ou
                         // decode no ar só dariam "⚠ decodificar" ao clicar.
                         if self.tex.is_some()
-                            && pill(ui, i18n::t(self.cfg.lang, Key::ExportClean), false)
-                                .on_hover_text(i18n::t(self.cfg.lang, Key::ExportCleanHint))
+                            && pill(ui, tr("Export clean"), false)
+                                .on_hover_text(tr("re-encodes without EXIF — saves nome.lab.png next to the original"))
                                 .clicked()
                         {
                             self.export_clean();
                         }
-                        if self.tex.is_some() && ghost(ui, "⊙").on_hover_text(i18n::t(self.cfg.lang, Key::CenterHint)).clicked() {
+                        if self.tex.is_some() && ghost(ui, "⊙").on_hover_text(tr("center (C)")).clicked() {
                             self.center_pending = true;
                         }
                     });
@@ -822,7 +826,7 @@ impl ImageApp {
                 // empurrava o "abrir" pra fora da janela.
                 ui.horizontal(|ui| {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if pill(ui, i18n::t(self.cfg.lang, Key::Open), true).clicked() {
+                        if pill(ui, tr("Open"), true).clicked() {
                             self.open_dir();
                         }
                         // `align`: o campo vive num layout da direita pra
@@ -855,11 +859,11 @@ impl ImageApp {
                 // Bloco desce ~1/3 da área livre (proporcional: escala com a
                 // janela, sem altura mágica).
                 child.add_space(area.rect.height() * 0.36);
-                if NATIVE_PICKER && pill(&mut child, i18n::t(self.cfg.lang, Key::OpenFolder), true).clicked() {
+                if NATIVE_PICKER && pill(&mut child, tr("Open folder"), true).clicked() {
                     pick = true;
                 }
                 child.add_space(10.0);
-                child.label(egui::RichText::new(i18n::t(self.cfg.lang, Key::PickFolder)).weak());
+                child.label(egui::RichText::new(tr("open a folder to browse")).weak());
                 // Seletor NATIVO (async — src/pickers.rs): a pasta escolhida
                 // é aplicada no drain do frame seguinte; cancelamento =
                 // silêncio, sem status.
@@ -1008,7 +1012,7 @@ impl ImageApp {
                 // "abrir com" num vídeo de pasta só-de-vídeos deixaria a
                 // janela sem NENHUMA forma de trazer o chrome de volta).
                 let resp = ui.allocate_response(ui.available_size(), egui::Sense::click());
-                let hint = i18n::t(self.cfg.lang, Key::VideoHint);
+                let hint = tr("video — opened in the system player");
                 let name = self.current().and_then(|p| p.file_name()).map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
                 video_placeholder(ui, resp.rect, hint, &name);
                 if resp.clicked() {
@@ -1035,7 +1039,7 @@ impl ImageApp {
                     begin_dialog(ui);
                     match &self.exif {
                         Some(entries) if entries.is_empty() => {
-                            ui.label(egui::RichText::new(i18n::t(self.cfg.lang, Key::NoExif)).weak());
+                            ui.label(egui::RichText::new(tr("no EXIF")).weak());
                         }
                         Some(entries) => {
                             egui::Grid::new("exif").num_columns(2).spacing([10.0, 4.0]).show(ui, |ui| {
@@ -1052,9 +1056,9 @@ impl ImageApp {
                             // casos o spinner giraria pra sempre.
                             let cur = self.current();
                             if cur.is_none() {
-                                ui.label(egui::RichText::new(i18n::t(self.cfg.lang, Key::NoImage)).weak());
+                                ui.label(egui::RichText::new(tr("no image")).weak());
                             } else if cur.is_some_and(|p| img::is_video(p)) {
-                                ui.label(egui::RichText::new(i18n::t(self.cfg.lang, Key::NoExif)).weak());
+                                ui.label(egui::RichText::new(tr("no EXIF")).weak());
                             } else {
                                 ui.spinner();
                             }

@@ -14,7 +14,6 @@ Rust puro + egui, app single-crate. Sem conta, sem telemetria, sem dependência 
   `packaging/windows/package.ps1`) e Linux (`packaging/linux/package.sh`, molde do local-office:
   AppImage + tar.gz FHS **com `install.sh` na raiz** + deb + rpm), valida o PKGBUILD real
   (`packaging/arch/`, container Arch + `makepkg --printsrcinfo`) e publica. Mínimo local.
-  O `installer.nsi` ficou no repo por ora, mas o CI não o usa mais.
 - **Disco:** no workspace do João vale a política de `target/` do dev-notes (`MEMORY.md` §4 — limpa o que
   está frio ou feito, mantém durante iteração ativa); fora dele, `cargo clean` ao terminar. Builds pesados são do CI.
 
@@ -23,7 +22,7 @@ Rust puro + egui, app single-crate. Sem conta, sem telemetria, sem dependência 
 - `icons/` — ícones do app (master PNG 1024)
 - `assets/app-icon/hicolor/` — árvore de ícones commitada (gerada por `packaging/icons.sh`)
 - `packaging/windows/package.ps1` + `local-image.wxs` — MSI per-machine (WiX v5, Program
-  Files\Local Image) e portable zip; `installer.nsi` é legado, sem uso no CI
+  Files\Local Image) e portable zip
 - `packaging/linux/` — `package.sh` (AppImage + tar FHS + install.sh + deb/rpm),
   `local-image.desktop`, `local-image.metainfo.xml.in`, `nfpm.yaml`, `postinst.sh`
 - `packaging/arch/PKGBUILD` — pacote Arch a partir do tarball FHS da release
@@ -34,8 +33,8 @@ cargo build --locked                       # debug
 cargo test --locked                        # testes
 cargo xtask ci                             # o gate local: o mesmo que o CI (fmt, clippy, build, testes, cargo-deny,
                                            # espelhos do local-libs)
-cargo xtask version set X.Y.Z              # bump (Cargo.toml, lab-ui, installer.nsi) + lock
-cargo xtask check                          # confere as 3 versões sincronizadas
+cargo xtask version set X.Y.Z              # bump (Cargo.toml) + lock
+cargo xtask check                          # confere a versão do Cargo.toml
 ```
 
 

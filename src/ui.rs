@@ -1,14 +1,14 @@
-//! Kit de UI do local-image — cópia do kit do lab-keys (onda 23), que é uma
-//! versão SIMPLIFICADA do `widgets.rs` do local-pdf: modal com cartão, campo
-//! alto, pill e ghost button. As cores saem do tema aplicado (`theme::apply`),
-//! então o mesmo desenho funciona nas 5 paletas do lab.
+//! Kit de UI do Local Image — uma versão simplificada do `widgets.rs` do
+//! local-pdf: modal com cartão, campo alto, pill e ghost button. As cores saem
+//! do tema aplicado (`theme::apply`), então o mesmo desenho funciona no claro
+//! e no escuro.
 
 /// Recuo interno de um campo — molde do `FIELD_MARGIN` do local-pdf.
 const FIELD_MARGIN: egui::Margin = egui::Margin::symmetric(10, 6);
 /// Altura externa mínima de um campo de uma linha.
 const FIELD_MIN_HEIGHT: f32 = 30.0;
 
-/// Cores derivadas do tema vigente (nada fixo: o lab tem 5 paletas).
+/// Cores derivadas do tema vigente (nada fixo).
 #[derive(Clone, Copy)]
 pub(crate) struct Skin {
     /// Fundo do cartão do diálogo (o "sunken" da paleta).
@@ -99,14 +99,6 @@ pub(crate) fn pill(ui: &mut egui::Ui, label: &str, primary: bool) -> egui::Respo
     }
 }
 
-/// Pill de ação destrutiva (vermelho fixo: legível nos dois temas). O
-/// local-image não tem ação destrutiva — o kit vem completo do lab-keys pra
-/// manter as cópias alinhadas.
-#[allow(dead_code)]
-pub(crate) fn pill_danger(ui: &mut egui::Ui, label: &str) -> egui::Response {
-    pill_colored(ui, label, egui::Color32::from_rgb(0xC0, 0x3A, 0x3A), egui::Color32::WHITE, false)
-}
-
 /// Pill com cores explícitas; `outline` desenha só a borda.
 fn pill_colored(ui: &mut egui::Ui, label: &str, fill: egui::Color32, ink: egui::Color32, outline: bool) -> egui::Response {
     let skin = Skin::of(ui);
@@ -163,4 +155,39 @@ fn ghost_ink(ui: &mut egui::Ui, label: &str, ink: egui::Color32) -> egui::Respon
     let pos = rect.center() - galley.size() / 2.0;
     ui.painter().galley(pos, galley, ink);
     resp
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Contraste WCAG entre duas cores opacas.
+    fn contrast(a: egui::Color32, b: egui::Color32) -> f32 {
+        let lum = |c: egui::Color32| {
+            let lin = |v: u8| {
+                let v = f32::from(v) / 255.0;
+                if v <= 0.04045 {
+                    v / 12.92
+                } else {
+                    ((v + 0.055) / 1.055).powf(2.4)
+                }
+            };
+            0.2126 * lin(c.r()) + 0.7152 * lin(c.g()) + 0.0722 * lin(c.b())
+        };
+        let (hi, lo) = (lum(a).max(lum(b)), lum(a).min(lum(b)));
+        (hi + 0.05) / (lo + 0.05)
+    }
+
+    /// O texto do pill primário (accent cheio) e os links passam de 4,5:1 nos dois temas.
+    #[test]
+    fn the_primary_pill_and_links_are_legible_in_both_themes() {
+        for tokens in [crate::theme::Tokens::light(), crate::theme::Tokens::dark()] {
+            let skin = Skin::from_visuals(&crate::theme::visuals(&tokens));
+            assert_eq!(skin.accent, tokens.accent, "o pill usa o accent cheio, não a seleção translúcida");
+            let pill = contrast(skin.on_accent, skin.accent);
+            let link = contrast(skin.accent, tokens.base);
+            assert!(pill >= 4.5, "texto do pill: {pill:.2}:1 (dark={})", tokens.dark);
+            assert!(link >= 4.5, "link sobre a base: {link:.2}:1 (dark={})", tokens.dark);
+        }
+    }
 }

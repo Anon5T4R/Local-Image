@@ -5,21 +5,10 @@ use craft_icons::{Icon, ThemeMode};
 use craft_palette::Command;
 use craft_update::updater::Status;
 use egui::{Key, KeyboardShortcut, Modifiers};
-use lab_ui::i18n::{self, Key as Text, Lang};
-use lab_ui::theme::{self, Appearance};
 
+use crate::i18n::{self, tr, tr_fmt};
 use crate::ui::{begin_dialog, modal_frame};
-use crate::ImageApp;
-
-/// O modo da suíte que corresponde à preferência salva (os ids são os mesmos: "system", "light", "dark").
-pub(crate) fn mode_of(appearance: Appearance) -> ThemeMode {
-    ThemeMode::from_id(appearance.code())
-}
-
-/// A preferência salva de um modo.
-pub(crate) fn appearance_of(mode: ThemeMode) -> Appearance {
-    Appearance::from_code(mode.id()).unwrap_or_default()
-}
+use crate::{theme, ImageApp};
 
 fn shortcut_text(ctx: &egui::Context) -> String {
     ctx.format_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::K))
@@ -27,39 +16,40 @@ fn shortcut_text(ctx: &egui::Context) -> String {
 
 impl ImageApp {
     /// Grava o config.json (idioma e tema).
-    fn save_config(&self) {
-        let _ = lab_ui::config::save_to(&self.config_file, &self.cfg);
+    fn save_prefs(&self) {
+        let _ = self.prefs.save_to(&self.config_file);
     }
 
     /// Troca o modo de tema: aplica e grava.
     pub(crate) fn set_mode(&mut self, ctx: &egui::Context, mode: ThemeMode) {
-        self.cfg.theme = appearance_of(mode);
-        theme::apply(ctx, self.cfg.theme);
-        self.save_config();
+        self.prefs.theme = mode.id().to_string();
+        theme::apply(ctx, mode);
+        self.save_prefs();
     }
 
-    fn set_lang(&mut self, lang: Lang) {
-        self.cfg.lang = lang;
-        self.save_config();
+    /// Troca o idioma (`auto` ou um código de `i18n::LANGUAGES`): vale a partir deste quadro e é gravado.
+    fn set_language(&mut self, language: &str) {
+        self.prefs.language = language.to_string();
+        i18n::set_language(language);
+        self.save_prefs();
     }
 
     /// Os controles da suíte à direita da barra de cima, num layout da direita para a esquerda: engrenagem
     /// (mais à direita), tema e lupa.
     pub(crate) fn shell_buttons(&mut self, ui: &mut egui::Ui) {
-        let lang = self.cfg.lang;
         // Longe da borda da janela, e um dedo de distância entre os botões.
         ui.add_space(8.0);
-        if craft_icons::ui::button(ui, Icon::Settings, i18n::tr(lang, "Settings")).clicked() {
+        if craft_icons::ui::button(ui, Icon::Settings, tr("Settings")).clicked() {
             self.settings_open = true;
         }
         ui.add_space(6.0);
-        let mut mode = mode_of(self.cfg.theme);
-        let tooltip = i18n::tr_fmt(lang, "Theme: {mode}", &[("mode", i18n::tr(lang, mode.label()))]);
+        let mut mode = self.prefs.mode();
+        let tooltip = tr_fmt("Theme: {mode}", &[("mode", tr(mode.label()))]);
         if craft_icons::ui::theme_button(ui, &mut mode, &tooltip) {
             self.set_mode(ui.ctx(), mode);
         }
         ui.add_space(6.0);
-        let search = i18n::tr_fmt(lang, "Search commands ({shortcut})", &[("shortcut", &shortcut_text(ui.ctx()))]);
+        let search = tr_fmt("Search commands ({shortcut})", &[("shortcut", &shortcut_text(ui.ctx()))]);
         if craft_icons::ui::button(ui, Icon::Search, &search).clicked() {
             self.palette.open();
         }
@@ -70,38 +60,44 @@ impl ImageApp {
         if !self.settings_open {
             return;
         }
-        let lang = self.cfg.lang;
-        let t = |source: &'static str| i18n::tr(lang, source);
         let mut close = false;
         let mut check = false;
-        let mut new_lang = lang;
-        let mut mode = mode_of(self.cfg.theme);
+        let language = self.prefs.language.clone();
+        let mut new_language = language.clone();
+        let mut mode = self.prefs.mode();
         let status = self.updater.status().clone();
         let resp = egui::Modal::new(egui::Id::unique("settings")).frame(modal_frame(ctx)).show(ctx, |ui| {
             begin_dialog(ui);
             // Cabe na janela estreita: a moldura do diálogo come 40 px e a borda 16.
             ui.set_width(320.0_f32.min(ctx.viewport_rect().width() - 56.0));
             ui.horizontal(|ui| {
-                ui.heading(t("Settings"));
+                ui.heading(tr("Settings"));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if craft_icons::ui::close_button(ui, i18n::t(lang, Text::Close)).clicked() {
+                    if craft_icons::ui::close_button(ui, tr("Close")).clicked() {
                         close = true;
                     }
                 });
             });
             ui.add_space(8.0);
             egui::Grid::new("settings-grid").num_columns(2).spacing([12.0, 8.0]).show(ui, |ui| {
-                ui.label(i18n::t(lang, Text::Language));
-                egui::ComboBox::from_id_salt("settings-lang").selected_text(lang.label()).show_ui(ui, |ui| {
-                    for choice in Lang::ALL {
-                        ui.selectable_value(&mut new_lang, choice, choice.label());
-                    }
-                });
+                // "Automático" segue o idioma do sistema; os idiomas aparecem pelo nome no próprio idioma.
+                let label = ui.label(tr("Language"));
+                let shown = if language == i18n::AUTO { tr("Automatic") } else { i18n::name_of(&language) };
+                egui::ComboBox::from_id_salt("settings-lang")
+                    .selected_text(shown)
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(&mut new_language, i18n::AUTO.to_string(), tr("Automatic"));
+                        for code in i18n::LANGUAGES {
+                            ui.selectable_value(&mut new_language, code.to_string(), i18n::name_of(code));
+                        }
+                    })
+                    .response
+                    .labelled_by(label.id);
                 ui.end_row();
-                ui.label(i18n::t(lang, Text::Theme));
+                ui.label(tr("Theme"));
                 ui.horizontal(|ui| {
                     for choice in ThemeMode::EVERY {
-                        ui.selectable_value(&mut mode, choice, t(choice.label()));
+                        ui.selectable_value(&mut mode, choice, tr(choice.label()));
                     }
                 });
                 ui.end_row();
@@ -109,13 +105,13 @@ impl ImageApp {
             ui.add_space(8.0);
             ui.separator();
             ui.add_space(4.0);
-            ui.strong(t("About Local Image"));
-            ui.label(i18n::tr_fmt(lang, "version {version}", &[("version", env!("CARGO_PKG_VERSION"))]));
+            ui.strong(tr("About Local Image"));
+            ui.label(tr_fmt("version {version}", &[("version", env!("CARGO_PKG_VERSION"))]));
             ui.hyperlink_to("github.com/Anon5T4R/Local-Image", env!("CARGO_PKG_REPOSITORY"));
             ui.add_space(6.0);
             ui.horizontal_wrapped(|ui| {
                 let checking = matches!(status, Status::Checking);
-                if ui.add_enabled(!checking, egui::Button::new(t("Check for Updates…"))).clicked() {
+                if ui.add_enabled(!checking, egui::Button::new(tr("Check for Updates…"))).clicked() {
                     check = true;
                 }
                 match &status {
@@ -123,19 +119,19 @@ impl ImageApp {
                         ui.spinner();
                     }
                     Status::UpToDate => {
-                        ui.label(t("You are on the newest version."));
+                        ui.label(tr("You are on the newest version."));
                     }
                     Status::Failed(reason) => {
-                        ui.label(format!("{}: {reason}", i18n::t(lang, Text::Error)));
+                        ui.label(format!("{}: {reason}", tr("Error")));
                     }
                     Status::Idle => {}
                 }
             });
         });
-        if new_lang != lang {
-            self.set_lang(new_lang);
+        if new_language != language {
+            self.set_language(&new_language);
         }
-        if mode_of(self.cfg.theme) != mode {
+        if self.prefs.mode() != mode {
             self.set_mode(ctx, mode);
         }
         if check {
@@ -149,13 +145,11 @@ impl ImageApp {
 
     /// O que a paleta lista agora: os botões e atalhos do viewer, com o mesmo "ligado" deles.
     pub(crate) fn commands(&self) -> Vec<Command> {
-        let lang = self.cfg.lang;
-        let tr = |source: &'static str| i18n::tr(lang, source);
         let (file, view, settings, help, app) = (tr("File"), tr("View"), tr("Settings"), tr("Help"), "Local Image");
         let has_image = self.tex.is_some();
         let mut list = vec![
             Command::new("file.open_folder", tr("Open folder…"), file),
-            Command::new("file.export_clean", i18n::t(lang, Text::ExportClean), file).enabled(has_image),
+            Command::new("file.export_clean", tr("Export clean"), file).enabled(has_image),
             Command::new("view.previous", tr("Previous image"), view).shortcut("←").enabled(self.idx.is_some_and(|i| i > 0)),
             Command::new("view.next", tr("Next image"), view).shortcut("→").enabled(self.idx.is_some_and(|i| i + 1 < self.files.len())),
             Command::new("view.zoom_in", tr("Zoom in"), view).enabled(has_image),
@@ -170,7 +164,7 @@ impl ImageApp {
             Command::new("settings.open", tr("Settings"), settings),
         ];
         for mode in ThemeMode::EVERY {
-            let label = i18n::tr_fmt(lang, "Theme: {mode}", &[("mode", i18n::tr(lang, mode.label()))]);
+            let label = tr_fmt("Theme: {mode}", &[("mode", tr(mode.label()))]);
             list.push(Command::new(format!("settings.theme.{}", mode.id()), label, settings));
         }
         let checking = matches!(self.updater.status(), Status::Checking);
@@ -222,9 +216,8 @@ impl ImageApp {
         if !self.palette.is_open() {
             return;
         }
-        let lang = self.cfg.lang;
         let commands = self.commands();
-        let labels = craft_palette::Labels { placeholder: i18n::tr(lang, "Search commands"), empty: i18n::tr(lang, "No command matches.") };
+        let labels = craft_palette::Labels { placeholder: tr("Search commands"), empty: tr("No command matches.") };
         if let Some(id) = self.palette.show(ctx, &labels, &commands) {
             self.run_command(ctx, &id);
         }

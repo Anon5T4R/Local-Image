@@ -1,5 +1,4 @@
-//! Área útil do monitor e encaixe de janela — extraído dos mains do
-//! lab-image/lab-player (era o mesmo ~90 linhas duplicado nos dois).
+//! Área útil do monitor e encaixe de janela.
 //!
 //! `fit_to_work_area` é o caminho único pra "janela do tamanho do
 //! conteúdo": px → points, clamp na área útil (taskbar descontada,

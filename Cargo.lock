@@ -2674,17 +2674,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "lab-ui"
-version = "0.5.14"
-dependencies = [
- "craft-i18n",
- "egui",
- "serde",
- "serde_json",
- "windows",
-]
-
-[[package]]
 name = "lazy_static"
 version = "1.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2781,6 +2770,7 @@ name = "local-image"
 version = "0.5.14"
 dependencies = [
  "craft-desktop-theme",
+ "craft-i18n",
  "craft-icons",
  "craft-palette",
  "craft-update",
@@ -2791,7 +2781,6 @@ dependencies = [
  "image",
  "jxl-image-rs-integration",
  "kamadak-exif",
- "lab-ui",
  "pollster 1.0.1",
  "rfd",
  "serde",
