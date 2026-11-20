@@ -421,6 +421,12 @@ fn displayed_size(tex: &egui::TextureHandle, rot: u32) -> egui::Vec2 {
     if rot % 2 == 1 { egui::vec2(s.y, s.x) } else { s }
 }
 
+/// Atalho de uma tecla só (R, F, C, I, 0, `[`, `]`): vale sem Ctrl, Alt, Shift nem Cmd. Ctrl+C é "copiar" do
+/// sistema e Ctrl+F, Ctrl+I, Alt+R… são dos atalhos de quem usa o app, não do viewer.
+fn plain_key(ctx: &egui::Context, key: egui::Key) -> bool {
+    ctx.input(|i| i.events.iter().any(|e| matches!(e, egui::Event::Key { key: k, pressed: true, modifiers, .. } if *k == key && modifiers.is_none())))
+}
+
 /// Quanto da imagem (em px de tela) fica sempre visível por eixo: o pan
 /// pode levar a imagem pro canto, nunca pra fora ("arrastar às cegas").
 const MIN_VISIBLE: f32 = 48.0;
@@ -591,7 +597,7 @@ impl ImageApp {
         // R = redimensiona a janela pra imagem ATUAL (abriu com uma,
         // navegou pras setas — a janela acompanha a nova). Dims já com a
         // rotação aplicada (90° troca os eixos).
-        if kb_free && ctx.input(|i| i.key_pressed(egui::Key::R)) {
+        if kb_free && plain_key(ctx, egui::Key::R) {
             self.resize_to_image();
             // O resize roda no PRÓXIMO frame — sem isso o app idle não
             // repinta e o comando nunca executa.
@@ -602,10 +608,10 @@ impl ImageApp {
         // VIEWER (pan/zoom/fit seguem as dimensões giradas; o export
         // usa o mesmo ângulo).
         if kb_free && self.tex.is_some() {
-            if ctx.input(|i| i.key_pressed(egui::Key::OpenBracket)) {
+            if plain_key(ctx, egui::Key::OpenBracket) {
                 self.rotate(3);
             }
-            if ctx.input(|i| i.key_pressed(egui::Key::CloseBracket)) {
+            if plain_key(ctx, egui::Key::CloseBracket) {
                 self.rotate(1);
             }
         }
@@ -751,20 +757,20 @@ impl ImageApp {
         // Alternar a tela cheia muda a viewport FORA do egui: sem repaint
         // agendado o app idle não refaz o layout e a imagem continuava no
         // tamanho da janela antiga.
-        if kb_free && ctx.input(|i| i.key_pressed(egui::Key::F)) {
+        if kb_free && plain_key(ctx, egui::Key::F) {
             self.toggle_fullscreen(ctx);
         }
         // C = centralizar mantendo o zoom (o offset materializa como pan,
         // igual ao primeiro scroll saindo do fit); 0 = fit completo.
-        if kb_free && self.tex.is_some() && ctx.input(|i| i.key_pressed(egui::Key::C)) {
+        if kb_free && self.tex.is_some() && plain_key(ctx, egui::Key::C) {
             self.center_pending = true;
         }
-        if kb_free && ctx.input(|i| i.key_pressed(egui::Key::Num0)) {
+        if kb_free && plain_key(ctx, egui::Key::Num0) {
             self.refit();
         }
         // i = painel EXIF (mesma guarda de letra: digitar "i" no campo do
         // rodapé não pode abrir o painel).
-        if kb_free && ctx.input(|i| i.key_pressed(egui::Key::I)) {
+        if kb_free && plain_key(ctx, egui::Key::I) {
             self.show_exif = !self.show_exif;
         }
 

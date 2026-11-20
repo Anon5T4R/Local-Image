@@ -320,3 +320,36 @@ fn review_shots() {
         }
     }
 }
+
+/// O atalho de uma letra só vale sem modificador: C sozinho centraliza (sai do encaixe), Ctrl+C e Alt+C não;
+/// o mesmo vale para as outras letras do viewer.
+#[test]
+fn single_letter_shortcuts_ignore_ctrl_and_alt() {
+    let fresh = |name: &str| {
+        let mut harness = harness_sized(app_with_image(name, Prefs::new("en", ThemeMode::Dark)), 700.0, true);
+        harness.run_steps(2);
+        assert!(harness.state().fit, "a imagem abre encaixada");
+        harness
+    };
+
+    for modifiers in [egui::Modifiers::COMMAND, egui::Modifiers::CTRL, egui::Modifiers::ALT, egui::Modifiers::SHIFT] {
+        let mut harness = fresh("letters-modified");
+        // Uma tecla por vez: girar volta ao encaixe e esconderia o C.
+        press(&mut harness, egui::Key::C, modifiers);
+        assert!(harness.state().fit, "{modifiers:?}+C não centraliza");
+        press(&mut harness, egui::Key::I, modifiers);
+        assert!(!harness.state().show_exif, "{modifiers:?}+I não abre o EXIF");
+        press(&mut harness, egui::Key::CloseBracket, modifiers);
+        press(&mut harness, egui::Key::OpenBracket, modifiers);
+        assert_eq!(harness.state().rot, 0, "{modifiers:?}+[ e ] não giram");
+    }
+
+    // Sem modificador, as mesmas teclas agem.
+    let mut harness = fresh("letters-plain");
+    press(&mut harness, egui::Key::C, egui::Modifiers::NONE);
+    assert!(!harness.state().fit, "C sozinho centraliza e sai do encaixe");
+    press(&mut harness, egui::Key::I, egui::Modifiers::NONE);
+    assert!(harness.state().show_exif, "I sozinho abre o EXIF");
+    press(&mut harness, egui::Key::CloseBracket, egui::Modifiers::NONE);
+    assert_eq!(harness.state().rot, 1, "] sozinho gira");
+}
