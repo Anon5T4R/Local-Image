@@ -10,15 +10,17 @@ Rust puro + egui, app single-crate. Sem conta, sem telemetria, sem dependência 
 - **Sem fontes git:** nenhuma dependência pode apontar para `git+` (o CI valida).
   Tudo vem do crates.io (pinado pelo lock).
 - **Commits:** português, sem Co-Authored-By.
-- **Release:** tag `vX.Y.Z` → o Actions builda Windows (MSI + portable zip, WiX v5 via
-  `packaging/windows/package.ps1`) e Linux (`packaging/linux/package.sh`, molde do local-office:
-  AppImage + tar.gz FHS **com `install.sh` na raiz** + deb + rpm), valida o PKGBUILD real
-  (`packaging/arch/`, container Arch + `makepkg --printsrcinfo`) e publica. Mínimo local.
+- **Release:** tag `vX.Y.Z` via `release.sh`; fluxo, gate local e checklist no
+  `docs/git-protocol.md` do dev-notes.
 - **Disco:** no workspace do João vale a política de `target/` do dev-notes (`MEMORY.md` §4 — limpa o que
   está frio ou feito, mantém durante iteração ativa); fora dele, `cargo clean` ao terminar. Builds pesados são do CI.
 
 ## Estrutura
-- `src/` — app single-crate (`src/pickers.rs`: seletor nativo async, molde do local-pdf)
+- `src/` — app single-crate (`src/pickers.rs`: seletor nativo async, molde do local-pdf;
+  também `src/i18n.rs`, `src/prefs.rs`, `src/theme.rs`, `src/shell.rs` e
+  `i18n/locales/<code>/*.tsv`)
+- Casca da suíte = `src/shell.rs` + craft-icons + craft-palette + craft-desktop-theme
+  (espelhos do local-libs)
 - `icons/` — ícones do app (master PNG 1024)
 - `assets/app-icon/hicolor/` — árvore de ícones commitada (gerada por `packaging/icons.sh`)
 - `packaging/windows/package.ps1` + `local-image.wxs` — MSI per-machine (WiX v5, Program
@@ -40,4 +42,5 @@ cargo xtask check                          # confere a versão do Cargo.toml
 
 ## Upstream e a pasta `<root>/storytold`
 
-Menções a `storytold/*` em código, comentários, docs e atribuições (NOTICE/ATTRIBUTION) são referência histórica e obrigação de licença. **Nada** é lido de `<root>/storytold` (Windows `C:\Dev\storytold` · Arch `~/Dev/dev-arch/storytold`) em build, teste ou release: tudo vem do próprio repo (crates.io pinado pelo lock + `libs/`/`vendor/` vendored + CI que busca craft-fonts/craft-i18n do GitHub). Essa pasta existe somente como referência local para a skill `sync-upstream`.
+Menções a `storytold/*` em código, docs e atribuições (NOTICE/ATTRIBUTION) são referência histórica e
+obrigação de licença — nada é lido dessa pasta em build, teste ou release.
