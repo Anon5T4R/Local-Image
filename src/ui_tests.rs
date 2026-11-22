@@ -15,6 +15,9 @@ use crate::prefs::Prefs;
 /// "Abrir com" numa imagem pequena abre uma janela pequena).
 const NARROW: f32 = 340.0;
 
+/// A altura da janela nos testes (o app não fixa mínimo de altura): os diálogos têm de caber nela.
+const HEIGHT: f32 = 640.0;
+
 /// Pasta temporária própria do teste (o config.json de teste vai para lá).
 fn scratch(name: &str) -> PathBuf {
     let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_nanos());
@@ -46,7 +49,7 @@ fn test_texture(ctx: &egui::Context) -> egui::TextureHandle {
 // O kittest falha se algum texto da tela cair numa fonte sem o glyph (a "caixinha") ou se um controle ficar sem nome
 // para leitores de tela: é o guarda dos emojis e da acessibilidade.
 fn harness_sized(app: ImageApp, width: f32, with_image: bool) -> Harness<'static, ImageApp> {
-    Harness::builder().with_size(egui::vec2(width, 640.0)).with_step_dt(1.0 / 60.0).build_ui_state(
+    Harness::builder().with_size(egui::vec2(width, HEIGHT)).with_step_dt(1.0 / 60.0).build_ui_state(
         move |ui, app: &mut ImageApp| {
             egui_extras::install_image_loaders(ui.ctx());
             // O idioma vale por thread (a interface roda numa só): cada teste fixa o seu a cada quadro.
@@ -355,7 +358,7 @@ fn single_letter_shortcuts_ignore_ctrl_and_alt() {
     assert_eq!(harness.state().rot, 1, "] sozinho gira");
 }
 
-/// Todo nó da tela, em coordenadas do accesskit, dentro da janela de `width` pontos.
+/// Todo nó da tela, em coordenadas do accesskit, dentro da janela de `width`×[`HEIGHT`] pontos.
 fn assert_inside(harness: &Harness<'_, ImageApp>, what: &str, width: f32) {
     for node in harness.root().children_recursive() {
         // O texto de um campo corre além da borda do próprio campo (o egui o recorta ao desenhar): vale o nó do campo.
@@ -365,8 +368,8 @@ fn assert_inside(harness: &Harness<'_, ImageApp>, what: &str, width: f32) {
         let Some(rect) = node.accesskit_node().bounding_box() else { continue };
         if rect.width() > 0.0 {
             assert!(
-                rect.x0 >= -0.5 && rect.x1 <= f64::from(width) + 0.5,
-                "{what}: {:?} fora da janela de {width}: {rect:?}",
+                rect.x0 >= -0.5 && rect.x1 <= f64::from(width) + 0.5 && rect.y0 >= -0.5 && rect.y1 <= f64::from(HEIGHT) + 0.5,
+                "{what}: {:?} fora da janela de {width}×{HEIGHT}: {rect:?}",
                 node.accesskit_node().role()
             );
         }
@@ -387,7 +390,8 @@ fn long_exif() -> Vec<(&'static str, String)> {
     .collect()
 }
 
-/// Cada diálogo e janela do app cabe na largura mínima: nenhum nó passa da borda, com a imagem aberta.
+/// Cada diálogo e janela do app cabe na janela mínima do teste (340×[`HEIGHT`]): nenhum nó passa da
+/// borda, em nenhum dos dois eixos, com a imagem aberta.
 #[test]
 fn every_dialog_fits_the_narrow_window() {
     type Open = fn(&mut ImageApp);
