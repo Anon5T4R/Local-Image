@@ -25,7 +25,7 @@ fn scratch(name: &str) -> PathBuf {
 }
 
 fn app(name: &str, prefs: Prefs) -> ImageApp {
-    let mut app = ImageApp::new(prefs, None, false);
+    let mut app = ImageApp::new(prefs, None, false, None, None);
     app.config_file = scratch(name).join("config.json");
     app
 }
