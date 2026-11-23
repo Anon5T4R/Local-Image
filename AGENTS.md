@@ -40,6 +40,29 @@ cargo xtask check                          # confere a versão do Cargo.toml
 ```
 
 
+## Agent-native (MCP)
+Todo comando do app é alcançável por um agente. O servidor é `local-image mcp` (stdio), sobre o
+`craft-mcp` da suíte (`libs/craft-libs/crates/mcp`, fonte `local-libs` — espelho, não editar), com
+três ferramentas: `command_list` (o catálogo: id, rótulo, menu, `appOnly` e o schema dos parâmetros),
+`command_run` (um id com `params`) e `command_batch` (passos em ordem, com `"$N.path"` puxando o
+resultado de um passo anterior). Sem cliente MCP: `local-image commands [--search TEXT]` imprime o
+catálogo e `local-image run --script job.json` roda os mesmos passos. O catálogo é
+`src/automation/catalogue.rs` — os comandos da paleta mais `file.open` e `image.info`, que o app já
+tinha fora dela (o caminho do "Abrir com"/args e os números do rodapé). Nada de ação nova.
+
+Os comandos são os mesmos no headless e na janela (`src/automation/session.rs`, uma implementação
+para os dois). O que precisa da janela (viewport, diálogos, updater, sair) diz `appOnly` e o
+servidor headless o recusa apontando o modo live.
+
+Modo live: `local-image --control PORT` abre o canal JSON em `127.0.0.1` e
+`local-image mcp --connect PORT` liga o MCP nele (porta nua = loopback; host que não é loopback é
+recusado antes de conectar). `--automation-read-root DIR`/`--automation-write-root DIR` (repetíveis,
+`--flag=DIR`) confinam os arquivos que os comandos leem e escrevem; uma espécie sem raiz não concede
+nada daquele acesso e, sem nenhuma flag, não há confinamento (o app do usuário). Com um app rodando,
+as flags vão para o app (`local-image --control PORT --automation-read-root DIR …`). As três vias
+têm teste em `tests/agent_native.rs`. O binário no Windows é subsistema GUI: `commands`/`run` devem
+ter a saída redirecionada (`> out.json`) ou vir de um cliente MCP, que já os canaliza.
+
 ## Upstream e a pasta `<root>/storytold`
 
 Menções a `storytold/*` em código, docs e atribuições (NOTICE/ATTRIBUTION) são referência histórica e

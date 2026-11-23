@@ -11,11 +11,11 @@ use egui_kittest::kittest::{NodeT, Queryable};
 use crate::ImageApp;
 use crate::prefs::Prefs;
 
-/// A largura mínima que as capturas de revisão e o teste de barra estreita usam (o app não fixa mínimo:
-/// "Abrir com" numa imagem pequena abre uma janela pequena).
+/// A largura mínima da janela ([`crate::MIN_INNER_SIZE`]): as capturas de revisão e o teste de barra estreita
+/// usam esta largura, e o `with_min_inner_size` não deixa a janela descer abaixo dela.
 const NARROW: f32 = 340.0;
 
-/// A altura da janela nos testes (o app não fixa mínimo de altura): os diálogos têm de caber nela.
+/// A altura do mínimo da janela ([`crate::MIN_INNER_SIZE`]): os diálogos têm de caber nela.
 const HEIGHT: f32 = 640.0;
 
 /// Pasta temporária própria do teste (o config.json de teste vai para lá).
@@ -25,7 +25,7 @@ fn scratch(name: &str) -> PathBuf {
 }
 
 fn app(name: &str, prefs: Prefs) -> ImageApp {
-    let mut app = ImageApp::new(prefs, None, false);
+    let mut app = ImageApp::new(prefs, None, false, None, None);
     app.config_file = scratch(name).join("config.json");
     app
 }
@@ -388,6 +388,14 @@ fn long_exif() -> Vec<(&'static str, String)> {
     .iter()
     .map(|(k, v)| (*k, v.to_string()))
     .collect()
+}
+
+/// A janela não desce abaixo do tamanho em que os diálogos são medidos: um mínimo menor (ou nenhum) deixaria um
+/// diálogo cortado, e o teste de encaixe não veria, porque ele mede na largura de [`NARROW`].
+#[test]
+fn the_window_cannot_be_resized_below_the_size_the_dialogs_are_measured_at() {
+    let [width, height] = crate::MIN_INNER_SIZE;
+    assert!(width >= NARROW && height >= HEIGHT, "mínimo {width}x{height} é menor que a janela dos testes {NARROW}x{HEIGHT}");
 }
 
 /// Cada diálogo e janela do app cabe na janela mínima do teste (340×[`HEIGHT`]): nenhum nó passa da
