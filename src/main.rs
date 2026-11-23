@@ -47,7 +47,11 @@ const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// Windows nativo, Linux via portal XDG (ver `src/pickers.rs`).
 const NATIVE_PICKER: bool = true;
 
-/// Ícone da janela (além do .exe cunhado no build.rs — Windows pega os
+/// O menor tamanho da janela: a largura e a altura em que `ui_tests` mede cada diálogo e a barra estreita
+/// (o teste `the_window_cannot_be_resized_below_the_size_the_dialogs_are_measured_at` cobra a relação).
+const MIN_INNER_SIZE: [f32; 2] = [340.0, 640.0];
+
+/// Ícone da janela (além do .exe cunhado no build.rs - Windows pega os
 /// dois; AppImage/desktop só vendo com o PNG do pacote).
 const ICON_PNG: &[u8] = include_bytes!("../icons/icon.png");
 
@@ -88,7 +92,7 @@ fn main() -> eframe::Result<()> {
     // primeiro update corrige a escala e clampa na tela.
     let inner_size = initial_file.as_ref().and_then(|p| image::image_dimensions(p).ok()).map(|(w, h)| [w as f32, h as f32]).unwrap_or([900.0, 640.0]);
 
-    let mut viewport = egui::ViewportBuilder::default().with_title("Local Image").with_inner_size(inner_size);
+    let mut viewport = egui::ViewportBuilder::default().with_title("Local Image").with_inner_size(inner_size).with_min_inner_size(MIN_INNER_SIZE);
     // Ícone da janela (o .exe já cunha o mesmo no build.rs — Resources).
     if let Some(icon) = load_icon() {
         viewport = viewport.with_icon(icon);
