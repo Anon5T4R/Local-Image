@@ -18,8 +18,10 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod automation;
 mod i18n;
 mod img;
+mod live;
 mod pickers;
 mod prefs;
 mod shell;
@@ -74,6 +76,41 @@ fn main() -> eframe::Result<()> {
         std::process::exit(i32::from(result.is_err()));
     }
 
+    // A linha de comando (mcp, run, commands): sai antes da janela. O resto é a
+    // janela — um arquivo (o "Abrir com" do Windows), `--control PORT` e as
+    // raízes de automação.
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    if let Some(code) = automation::cli::run(&args) {
+        std::process::exit(code);
+    }
+    let launch = match automation::launch::parse(&args) {
+        Ok(launch) => launch,
+        Err(e) => {
+            eprintln!("local-image: {e}");
+            std::process::exit(2);
+        }
+    };
+    let roots = match launch.roots.roots() {
+        Ok(roots) => roots,
+        Err(e) => {
+            eprintln!("local-image: {e}");
+            std::process::exit(2);
+        }
+    };
+    // O canal de controle (agentes, scripts): escuta em loopback antes da janela,
+    // para uma porta ocupada falhar aqui e não no meio do uso.
+    let control = match launch.control.map(automation::control::Control::start) {
+        None => None,
+        Some(Ok(control)) => {
+            eprintln!("local-image: control channel on 127.0.0.1:{}", control.port());
+            Some(control)
+        }
+        Some(Err(e)) => {
+            eprintln!("local-image: {e}");
+            std::process::exit(1);
+        }
+    };
+
     let prefs = Prefs::load_from(&config_dir(APP_ID).join("config.json"));
     i18n::set_language(&prefs.language);
 
@@ -81,11 +118,7 @@ fn main() -> eframe::Result<()> {
     // canonicalize normaliza o casing/curto-caminho (o match com a listagem
     // depende disso); strip_verbatim tira o `\\?\` que o canonicalize devolve —
     // sem ele o prefixo vaza no rodapé e no breadcrumb.
-    let initial_file = std::env::args()
-        .nth(1)
-        .map(PathBuf::from)
-        .and_then(|p| p.canonicalize().ok())
-        .map(|p| PathBuf::from(img::strip_verbatim(&p.to_string_lossy())));
+    let initial_file = launch.file.and_then(|p| p.canonicalize().ok()).map(|p| PathBuf::from(img::strip_verbatim(&p.to_string_lossy())));
 
     // "Abrir com" = janela no tamanho REAL da imagem (header only — sem
     // decode). ppp ainda é desconhecido aqui (points ≈ px em 100%); o
@@ -108,7 +141,7 @@ fn main() -> eframe::Result<()> {
             // Linux: a escolha clara/escura do desktop, que o winit não informa.
             craft_desktop_theme::follow(&cc.egui_ctx);
             let opened_with_file = initial_file.is_some();
-            let mut app = ImageApp::new(prefs, initial_file, opened_with_file);
+            let mut app = ImageApp::new(prefs, initial_file, opened_with_file, control, roots);
             // Check de update no arranque: achou release nova, o prompt do
             // updater abre sozinho (craft_update::dialog).
             app.updater.check_at_start(&cc.egui_ctx);
@@ -253,10 +286,20 @@ struct ImageApp {
     quit: bool,
     /// Zoom pedido pela paleta (fator): o painel central aplica ancorado no centro da imagem.
     zoom_request: Option<f32>,
+    /// O canal de controle do `--control PORT` (agentes e scripts), quando o app foi iniciado com ele.
+    control: Option<automation::control::Control>,
+    /// As raízes de automação dadas com `--control` (nenhuma: nada é confinado).
+    roots: Option<craft_mcp::automation::Roots>,
 }
 
 impl ImageApp {
-    fn new(prefs: Prefs, initial_file: Option<PathBuf>, opened_with_file: bool) -> Self {
+    fn new(
+        prefs: Prefs,
+        initial_file: Option<PathBuf>,
+        opened_with_file: bool,
+        control: Option<automation::control::Control>,
+        roots: Option<craft_mcp::automation::Roots>,
+    ) -> Self {
         Self {
             prefs,
             dir: String::new(),
@@ -285,6 +328,8 @@ impl ImageApp {
             config_file: config_dir(APP_ID).join("config.json"),
             quit: false,
             zoom_request: None,
+            control,
+            roots,
         }
     }
 
@@ -515,6 +560,9 @@ impl ImageApp {
         if self.quit {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
         }
+
+        // Canal de controle (`--control PORT`): responde o que o agente pediu, com o estado da janela.
+        self.pump_control(ctx);
 
         // Updater (craft_update): drena o check/instalação pendente (o tick
         // acorda a UI por si). Resultado de um check PEDIDO sai na barra de

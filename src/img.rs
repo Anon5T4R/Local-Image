@@ -49,6 +49,11 @@ pub fn strip_verbatim(s: &str) -> String {
     if b.len() >= 3 && b[0].is_ascii_alphabetic() && b[1] == b':' && (b[2] == b'\\' || b[2] == b'/') { rest.to_string() } else { s.to_string() }
 }
 
+/// `path` without the verbatim prefix, as [`strip_verbatim`] leaves the text (for display).
+pub fn strip_verbatim_path(path: &Path) -> PathBuf {
+    PathBuf::from(strip_verbatim(&path.to_string_lossy()))
+}
+
 /// Lista imagens e vídeos da pasta (ordenados sem diferenciar maiúsculas) —
 /// é a sequência das setas ←/→ do visualizador. A extensão é filtrada ANTES
 /// de qualquer stat (numa pasta de nuvem é a diferença entre milissegundos e
