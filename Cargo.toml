@@ -33,7 +33,7 @@ rustls-rustcrypto = { path = "libs/rustls-rustcrypto" }
 
 [package]
 name = "local-image"
-version = "0.6.2"
+version = "0.6.3"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 publish.workspace = true
