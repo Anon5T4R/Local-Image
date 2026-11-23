@@ -302,7 +302,7 @@ fn display(path: &Path) -> String {
 mod tests {
     use super::*;
 
-    /// A fresh folder with two images and one unrelated file; returns it.
+    /// A fresh folder with two images and one unrelated file; returns its resolved path.
     fn folder(tag: &str) -> PathBuf {
         let n = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
         let dir = std::env::temp_dir().join(format!("local-image-{tag}-{}-{n}", std::process::id()));
@@ -311,7 +311,8 @@ mod tests {
             image::RgbImage::from_pixel(4, 3, image::Rgb([(name.len() as u8) * 40, 10, 90])).save(dir.join(name)).unwrap();
         }
         std::fs::write(dir.join("notes.txt"), b"not media").unwrap();
-        dir
+        // The runner's temp folder can be an 8.3 short name (`RUNNER~1`); replies carry the long one.
+        resolve(&dir.to_string_lossy()).unwrap()
     }
 
     fn session(roots: Option<Roots>) -> Session {
