@@ -11,12 +11,17 @@ pub const LOCALIMAGE: App = App {
     icon_png: Some(include_bytes!("../assets/icons/local-image.png")),
     ..App::new("local-image", "Local Image", "Image viewer", "Anon5T4R/Local-Image")
 };
-pub const LOCALPAINT: App = App {
-    former_names: &["LocalPaint"],
-    publisher: "Local Paint contributors",
-    icon_png: Some(include_bytes!("../assets/icons/localpaint.png")),
-    ..App::new("localpaint", "Local Paint", "Image editing", "Anon5T4R/Local-Paint")
+pub const LOCALRASTER: App = App {
+    former_ids: &["localpaint"],
+    former_names: &["LocalPaint", "Local Paint"],
+    former_repos: &["Anon5T4R/Local-Paint"],
+    publisher: "Local Raster contributors",
+    icon_png: Some(include_bytes!("../assets/icons/localraster.png")),
+    ..App::new("localraster", "Local Raster", "Image editing", "Anon5T4R/Local-Raster")
 };
+/// Local Paint's old name.
+#[deprecated(note = "renamed: use LOCALRASTER")]
+pub const LOCALPAINT: App = LOCALRASTER;
 pub const LOCALPHOTO: App = App {
     publisher: "Local Photo contributors",
     icon_png: Some(include_bytes!("../assets/icons/localphoto.png")),
@@ -47,13 +52,17 @@ pub const EFFECTCRAFT: App = App::new("effectcraft", "EffectCraft", "Motion grap
 pub const DESIGNCRAFT: App = App::new("designcraft", "DesignCraft", "Page layout and publishing", "storytold/designcraft");
 pub const FIGCRAFT: App = App::new("figcraft", "FigCraft", "Interface design and prototyping", "storytold/figcraft");
 pub const WORDCRAFT: App = App::new("wordcraft", "WordCraft", "Writing and document design", "storytold/wordcraft");
-pub const LOCALOFFICE: App = App {
-    former_ids: &["wordcraft"],
-    former_names: &["WordCraft", "LocalOffice"],
-    publisher: "Local Word contributors",
-    icon_png: Some(include_bytes!("../assets/icons/localoffice.png")),
-    ..App::new("localoffice", "Local Word", "Writing and document design", "Anon5T4R/local-office")
+pub const LOCALWRITER: App = App {
+    former_ids: &["localoffice", "wordcraft"],
+    former_names: &["Local Word", "WordCraft", "LocalOffice"],
+    former_repos: &["Anon5T4R/local-office"],
+    publisher: "Local Writer contributors",
+    icon_png: Some(include_bytes!("../assets/icons/localwriter.png")),
+    ..App::new("localwriter", "Local Writer", "Writing and document design", "Anon5T4R/Local-Writer")
 };
+/// Local Writer's old name (Local Word).
+#[deprecated(note = "renamed: use LOCALWRITER")]
+pub const LOCALOFFICE: App = LOCALWRITER;
 pub const SOUNDCRAFT: App = App::new("soundcraft", "SoundCraft", "Recording, editing and mixing audio", "storytold/soundcraft");
 pub const DECKCRAFT: App = App::new("deckcraft", "DeckCraft", "Presentations and slide shows", "storytold/deckcraft");
 pub const LOCALSLIDES: App = App {
@@ -86,11 +95,17 @@ pub const LOCALPLAYER: App = App {
     icon_png: Some(include_bytes!("../assets/icons/local-player.png")),
     ..App::new("local-player", "Local Player", "Media player", "Anon5T4R/Local-Player")
 };
-pub const LOCALOBSIDIAN: App = App {
-    publisher: "Local Obsidian contributors",
-    icon_png: Some(include_bytes!("../assets/icons/localobsidian.png")),
-    ..App::new("localobsidian", "Local Obsidian", "Notes, wikilinks and attachments", "Anon5T4R/Local-Obsidian")
+pub const LOCALNOTEBOOK: App = App {
+    former_ids: &["localobsidian"],
+    former_names: &["Local Obsidian"],
+    former_repos: &["Anon5T4R/Local-Obsidian"],
+    publisher: "Local Notebook contributors",
+    icon_png: Some(include_bytes!("../assets/icons/localnotebook.png")),
+    ..App::new("localnotebook", "Local Notebook", "Notes, wikilinks and attachments", "Anon5T4R/Local-Notebook")
 };
+/// Local Notebook's old name (Local Obsidian).
+#[deprecated(note = "renamed: use LOCALNOTEBOOK")]
+pub const LOCALOBSIDIAN: App = LOCALNOTEBOOK;
 pub const LOCALMIND: App = App {
     publisher: "Local Mind contributors",
     icon_png: Some(include_bytes!("../assets/icons/localmind.png")),
@@ -108,7 +123,7 @@ pub const LAUNCHER: App = App::new("artcraft-launcher", "ArtCraft Launcher", "In
 pub const SUITE: [App; 26] = [
     PHOTOCRAFT,
     LOCALIMAGE,
-    LOCALPAINT,
+    LOCALRASTER,
     LOCALPHOTO,
     LOCALVECTOR,
     VECTORCRAFT,
@@ -120,7 +135,7 @@ pub const SUITE: [App; 26] = [
     DESIGNCRAFT,
     FIGCRAFT,
     WORDCRAFT,
-    LOCALOFFICE,
+    LOCALWRITER,
     SOUNDCRAFT,
     DECKCRAFT,
     LOCALSLIDES,
@@ -128,7 +143,7 @@ pub const SUITE: [App; 26] = [
     LOCALKEYS,
     LOCALUTILS,
     LOCALPLAYER,
-    LOCALOBSIDIAN,
+    LOCALNOTEBOOK,
     LOCALMIND,
     CADCRAFT,
     GRIDCRAFT,
@@ -177,8 +192,8 @@ mod tests {
         assert!(by_id(LAUNCHER.id).is_none());
         assert_eq!(by_id("pdfcraft").map(|a| a.former_ids), Some(&["printcraft"][..]));
         assert_eq!(by_id("localpdf").map(|a| a.former_names), Some(&["PrintCraft", "LocalPDF"][..]));
-        assert_eq!(by_id("localoffice").map(|a| (a.name, a.publisher)), Some(("Local Word", "Local Word contributors")));
-        assert_eq!(by_id("localpaint").map(|a| a.repo), Some("Anon5T4R/Local-Paint"));
+        assert_eq!(by_id("localwriter").map(|a| (a.name, a.publisher)), Some(("Local Writer", "Local Writer contributors")));
+        assert_eq!(by_id("localraster").map(|a| a.repo), Some("Anon5T4R/Local-Raster"));
         assert_eq!(
             by_id("localphoto").map(|a| (a.name, a.publisher, a.repo)),
             Some(("Local Photo", "Local Photo contributors", "Anon5T4R/Local-Photo"))
@@ -191,8 +206,8 @@ mod tests {
         assert_eq!(by_id("local-utils").map(|a| a.publisher), Some("Local Utils contributors"));
         assert_eq!(by_id("local-player").map(|a| a.publisher), Some("Local Player RS contributors"));
         assert_eq!(
-            by_id("localobsidian").map(|a| (a.name, a.publisher, a.repo)),
-            Some(("Local Obsidian", "Local Obsidian contributors", "Anon5T4R/Local-Obsidian"))
+            by_id("localnotebook").map(|a| (a.name, a.publisher, a.repo)),
+            Some(("Local Notebook", "Local Notebook contributors", "Anon5T4R/Local-Notebook"))
         );
         assert_eq!(by_id("localmind").map(|a| (a.name, a.publisher, a.repo)), Some(("Local Mind", "Local Mind contributors", "Anon5T4R/Local-Mind")));
     }

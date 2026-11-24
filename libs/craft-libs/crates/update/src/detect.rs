@@ -772,11 +772,15 @@ mod tests {
 
     #[test]
     fn the_apps_installer_publisher_matches_its_wix_manufacturer() {
-        let app = App::by_id("localpaint").unwrap();
-        assert!(is_installer_entry(app, "Local Paint", "Local Paint contributors"), "the WiX names Manufacturer=\"Local Paint contributors\"");
-        assert!(is_installer_entry(app, "LocalPaint", "Local Paint contributors"), "an MSI from before the rename is still this app's");
-        assert!(!is_installer_entry(app, "Local Paint", LEARNING_MACHINES), "the upstream publisher is not this app's");
-        assert!(!is_installer_entry(app, "Local Paint", "Anon5T4R"), "the old publisher is not this app's any more");
+        let app = App::by_id("localraster").unwrap();
+        assert!(is_installer_entry(app, "Local Raster", "Local Raster contributors"), "the WiX names Manufacturer=\"Local Raster contributors\"");
+        assert!(!is_installer_entry(app, "Local Raster", LEARNING_MACHINES), "the upstream publisher is not this app's");
+        assert!(!is_installer_entry(app, "Local Raster", "Anon5T4R"), "the old publisher is not this app's any more");
+        // An MSI from before the rename (Local Paint, Local Paint contributors) is still found by name,
+        // as the fallback: it is not `Owned`, so a current install wins over it.
+        for old in ["Local Paint", "LocalPaint"] {
+            assert_eq!(entry_match(app, old, "Local Paint contributors"), EntryMatch::Named, "{old}");
+        }
     }
 
     #[test]
