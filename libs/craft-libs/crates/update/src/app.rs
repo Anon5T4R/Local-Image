@@ -70,7 +70,7 @@ impl App {
             "localpaint" | "localraster" => "com.localpaint.app".into(),
             "localphoto" => "com.localphoto.app".into(),
             "localobsidian" | "localnotebook" => "com.localobsidian.app".into(),
-            "localmind" => "com.localmind.app".into(),
+            "localmind" | "localmindmap" => "com.localmind.app".into(),
             _ => format!("ai.storyteller.{}", self.id),
         }
     }
@@ -127,6 +127,7 @@ mod tests {
             ("localobsidian", "com.localobsidian.app"),
             ("localnotebook", "com.localobsidian.app"),
             ("localmind", "com.localmind.app"),
+            ("localmindmap", "com.localmind.app"),
         ] {
             let app = App::new(id, id, "", "");
             assert_eq!(app.bundle_id(), bundle);

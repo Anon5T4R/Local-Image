@@ -115,12 +115,17 @@ pub const LOCALNOTEBOOK: App = App {
 /// Local Notebook's old name (Local Obsidian).
 #[deprecated(note = "renamed: use LOCALNOTEBOOK")]
 pub const LOCALOBSIDIAN: App = LOCALNOTEBOOK;
-pub const LOCALMIND: App = App {
+pub const LOCALMINDMAP: App = App {
+    former_ids: &["localmind"],
+    former_names: &["Local Mind"],
     former_repos: &["Anon5T4R/Local-Mind"],
-    publisher: "Local Mind contributors",
-    icon_png: Some(include_bytes!("../assets/icons/localmind.png")),
-    ..App::new("localmind", "Local Mind", "Mind maps with a balanced layout", "Styx-Studios/Local-Mind")
+    publisher: "Local Mindmap contributors",
+    icon_png: Some(include_bytes!("../assets/icons/localmindmap.png")),
+    ..App::new("localmindmap", "Local Mindmap", "Mind maps with a balanced layout", "Styx-Studios/Local-Mindmap")
 };
+/// Local Mindmap's old name (Local Mind).
+#[deprecated(note = "renamed: use LOCALMINDMAP")]
+pub const LOCALMIND: App = LOCALMINDMAP;
 pub const CADCRAFT: App = App::new("cadcraft", "CADCraft", "Computer-aided design and drafting", "storytold/cadcraft");
 pub const GRIDCRAFT: App = App::new("gridcraft", "GridCraft", "Spreadsheets and data", "storytold/gridcraft");
 
@@ -154,7 +159,7 @@ pub const SUITE: [App; 26] = [
     LOCALUTILS,
     LOCALPLAYER,
     LOCALNOTEBOOK,
-    LOCALMIND,
+    LOCALMINDMAP,
     CADCRAFT,
     GRIDCRAFT,
 ];
@@ -220,8 +225,8 @@ mod tests {
             Some(("Local Notebook", "Local Notebook contributors", "Styx-Studios/Local-Notebook"))
         );
         assert_eq!(
-            by_id("localmind").map(|a| (a.name, a.publisher, a.repo)),
-            Some(("Local Mind", "Local Mind contributors", "Styx-Studios/Local-Mind"))
+            by_id("localmindmap").map(|a| (a.name, a.publisher, a.repo)),
+            Some(("Local Mindmap", "Local Mindmap contributors", "Styx-Studios/Local-Mindmap"))
         );
     }
 
