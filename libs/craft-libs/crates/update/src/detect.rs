@@ -822,7 +822,7 @@ mod tests {
 
     #[test]
     fn the_suites_own_apps_publish_under_their_own_name_and_carry_their_icon() {
-        for app in SUITE.iter().filter(|app| app.repo.starts_with("Anon5T4R/")) {
+        for app in SUITE.iter().filter(|app| app.repo.starts_with("Styx-Studios/")) {
             assert_ne!(app.publisher, LEARNING_MACHINES, "{} still carries the upstream publisher, so its own MSI is not recognised", app.name);
             assert!(app.icon_png.is_some(), "{} carries no icon for its update prompt", app.name);
         }

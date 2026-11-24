@@ -471,7 +471,7 @@ mod tests {
         assert!(valid_file_name("photocraft-0.5.0-linux-x86_64.AppImage"));
     }
 
-    const NEW: &str = "Anon5T4R/Local-Writer";
+    const NEW: &str = "Styx-Studios/Local-Writer";
     const OLD: &str = "Anon5T4R/local-office";
 
     fn asset_at(repo: &str) -> String {
@@ -524,7 +524,7 @@ mod tests {
     fn the_release_page_may_be_under_a_former_repository() {
         for repo in [NEW, OLD] {
             for page in [
-                "https://github.com/Anon5T4R/Local-Writer/releases/tag/v1.0.0",
+                "https://github.com/Styx-Studios/Local-Writer/releases/tag/v1.0.0",
                 "https://github.com/Anon5T4R/local-office/releases/tag/v1.0.0",
                 "https://github.com/Anon5T4R/local-office/releases",
             ] {
@@ -547,7 +547,7 @@ mod tests {
     fn redirects_and_sums_follow_the_former_repository_too() {
         // `github.com/<old>/releases/latest` redirects to the new name.
         for queried in [NEW, OLD] {
-            assert_eq!(tag_from_redirect("https://github.com/Anon5T4R/Local-Writer/releases/tag/v1.0.0", queried).as_deref(), Some("v1.0.0"));
+            assert_eq!(tag_from_redirect("https://github.com/Styx-Studios/Local-Writer/releases/tag/v1.0.0", queried).as_deref(), Some("v1.0.0"));
             assert_eq!(tag_from_redirect("https://github.com/Anon5T4R/local-office/releases/tag/v1.0.0", queried).as_deref(), Some("v1.0.0"));
             assert_eq!(tag_from_redirect("https://github.com/Anon5T4R/Local-Other/releases/tag/v1.0.0", queried), None);
         }

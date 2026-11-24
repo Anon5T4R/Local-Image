@@ -275,7 +275,7 @@ mod tests {
         assert_eq!(retry_at(Some(99_999_999_999), 1_000), 1_000 + 60 * 60);
     }
 
-    const NEW: &str = "Anon5T4R/Local-Writer";
+    const NEW: &str = "Styx-Studios/Local-Writer";
     const OLD: &str = "Anon5T4R/local-office";
 
     fn release_tagged(tag: &str) -> Release {
@@ -352,11 +352,11 @@ mod tests {
     #[test]
     fn an_app_without_former_repositories_is_asked_once() {
         let asked = std::cell::RefCell::new(Vec::new());
-        let answer = latest_or_former("Anon5T4R/Local-Keys", |repo| {
+        let answer = latest_or_former("storytold/photocraft", |repo| {
             asked.borrow_mut().push(repo.to_string());
             said(LatestRelease::None, Source::GitHubApi)
         });
         assert_eq!(answer.latest, LatestRelease::None);
-        assert_eq!(asked.into_inner(), ["Anon5T4R/Local-Keys"]);
+        assert_eq!(asked.into_inner(), ["storytold/photocraft"]);
     }
 }
