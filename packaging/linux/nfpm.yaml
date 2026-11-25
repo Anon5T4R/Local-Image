@@ -14,7 +14,7 @@ section: graphics
 priority: optional
 maintainer: ${LOCALIMAGE_MAINTAINER}
 vendor: Local Image contributors
-homepage: https://github.com/Anon5T4R/Local-Image
+homepage: https://github.com/Styx-Studios/Local-Image
 license: MIT OR Apache-2.0
 description: |-
   Open-source image viewer that works 100% locally and offline.

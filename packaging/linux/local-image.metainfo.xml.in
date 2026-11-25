@@ -21,10 +21,10 @@
   <launchable type="desktop-id">local-image.desktop</launchable>
   <icon type="stock">local-image</icon>
   <!-- Only url types known to appstream 0.15 (Ubuntu 22.04, where CI validates): no vcs-browser. -->
-  <url type="homepage">https://github.com/Anon5T4R/Local-Image</url>
-  <url type="bugtracker">https://github.com/Anon5T4R/Local-Image/issues</url>
-  <url type="help">https://github.com/Anon5T4R/Local-Image</url>
-  <url type="contact">https://github.com/Anon5T4R/Local-Image/issues</url>
+  <url type="homepage">https://github.com/Styx-Studios/Local-Image</url>
+  <url type="bugtracker">https://github.com/Styx-Studios/Local-Image/issues</url>
+  <url type="help">https://github.com/Styx-Studios/Local-Image</url>
+  <url type="contact">https://github.com/Styx-Studios/Local-Image/issues</url>
   <categories>
     <category>Graphics</category>
     <category>Viewer</category>

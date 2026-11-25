@@ -107,7 +107,7 @@ impl ImageApp {
             ui.add_space(4.0);
             ui.strong(tr("About Local Image"));
             ui.label(tr_fmt("version {version}", &[("version", env!("CARGO_PKG_VERSION"))]));
-            ui.hyperlink_to("github.com/Anon5T4R/Local-Image", env!("CARGO_PKG_REPOSITORY"));
+            ui.hyperlink_to("github.com/Styx-Studios/Local-Image", env!("CARGO_PKG_REPOSITORY"));
             ui.add_space(6.0);
             ui.horizontal_wrapped(|ui| {
                 let checking = matches!(status, Status::Checking);

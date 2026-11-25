@@ -5,7 +5,7 @@ Rust puro + egui, app single-crate. Sem conta, sem telemetria, sem dependência 
 
 ## Regras
 - **Dependências:** toda dep que entra/sai/atualiza exige `Cargo.lock` commitado +
-  linha no inventário do repo `Anon5T4R/local-deps` (regra completa em
+  linha no inventário do repo `Styx-Studios/local-deps` (regra completa em
   `local-deps/WORKFLOW.md`).
 - **Sem fontes git:** nenhuma dependência pode apontar para `git+` (o CI valida).
   Tudo vem do crates.io (pinado pelo lock).

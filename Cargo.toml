@@ -37,7 +37,7 @@ version = "0.6.6"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 publish.workspace = true
-repository = "https://github.com/Anon5T4R/Local-Image"
+repository = "https://github.com/Styx-Studios/Local-Image"
 description = "Visualizador de imagens 100% local e offline — export sempre re-encodado (EXIF nunca sobrevive)"
 
 [build-dependencies]
