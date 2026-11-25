@@ -14,12 +14,6 @@
 </p>
 
 <!-- screenshot: a real folder open with one photo on screen and the EXIF panel; dark and light -->
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/images/readme/main-dark.png">
-    <img src="docs/images/readme/main-light.png" width="820" alt="Local Image showing a photo with the EXIF panel">
-  </picture>
-</p>
 
 ## What it does
 
