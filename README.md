@@ -39,8 +39,8 @@
 - `Ctrl+K` opens the command palette. Settings hold the language (English, Spanish, Portuguese (Brazil)), the theme
   (Automatic, Light, Dark) and the update check.
 - Clicking the image hides or shows the interface. Opened from the file manager ("Open with") or the command line,
-  the window starts at the image's size (clamped to the screen) with the interface hidden, and the status line shows
-  the image's dimensions and file size.
+  the window starts with the interface hidden, at the image's size when it fits and never smaller than the minimum
+  window; a click reveals the interface, and the status line then shows the image's dimensions and file size.
 - The same commands are exposed to scripts and agents: `local-image mcp` (or `commands` / `run --script`) in a
   headless run, and a live channel with `--control` for the commands that need the window ([AGENTS.md](AGENTS.md)).
 
@@ -53,8 +53,9 @@ Images: PNG, JPEG (`.jpg`, `.jpeg`), WebP, GIF, BMP, TIFF (`.tif`, `.tiff`), ICO
 Videos (MP4, MOV, MKV, WebM, AVI, M4V, WMV, FLV, MPG, MPEG, M2TS, TS) are listed and handed to the system player;
 the app does not decode them.
 
-The export is PNG by default; through the command line or an agent, a `.jpg` destination writes JPEG. Either way
-the file is re-encoded, never a copy of the original bytes.
+The destination decides the format: a destination ending in `.png` writes PNG; anything else is written as JPEG
+under the name you gave (a destination with no extension gets `.jpg`). Either way the file is re-encoded, never a
+copy of the original bytes.
 
 AVIF is not read: the `image` crate decodes it only through dav1d, a C library, and the app does not build a C
 image decoder. HEIC is not read either.
@@ -63,7 +64,7 @@ image decoder. HEIC is not read either.
 
 Windows 10/11 (x64): `.msi` per-machine installer or portable `.zip`. Linux (x86_64): `.AppImage`, `.deb`, `.rpm`,
 `.tar.gz` or Arch `.pkg.tar.zst`. All in
-[Releases](https://github.com/Anon5T4R/Local-Image/releases). macOS is not published.
+[Releases](https://github.com/Anon5T4R/Local-Image/releases/latest). macOS is not published.
 
 Releases ship a `SHA256SUMS.txt`. The release workflow also signs the files with
 [minisign](https://jedisct1.github.io/minisign/) when CI has the signing key; it is the same key as every Local app.
@@ -94,9 +95,10 @@ The public key is also in [packaging/minisign.pub](packaging/minisign.pub).
 
 ## Where it comes from
 
-Local Image is our own app, not a fork of someone else's viewer. It began as `lab-image`, an early pilot of ours, and
-this repository is that viewer rebuilt on the shell every Local app shares. The pilot's UI crate (`lab-ui`) was
-vendored here and removed in 0.6.0, when languages, preferences and theme moved into the app.
+Local Image is our own app, not a fork of someone else's viewer. It started as an internal pilot: the interface
+lived in a `lab-ui` crate, and the image reading was ported from the `img.rs` of the legacy LocalImage app. This
+repository is that viewer rebuilt on the shell every Local app shares; the pilot's UI crate was vendored here and
+later removed, when languages, preferences and theme moved into the app.
 
 Decoding comes from Rust crates: the `image` crate reads the formats, `jxl-rs` (through
 `jxl-image-rs-integration`) adds JPEG XL, and `kamadak-exif` reads the metadata panel. None of them downloads
@@ -110,7 +112,7 @@ the provider stays the only one in the path, with no fallback to `ring` or `aws-
 
 **What changed from the pilot:** the name, icon and identifiers; the shell shared by the suite (palette, themes,
 settings, update card); app-local languages and preferences; and the updater with its Windows (MSI and portable)
-and Linux (AppImage and tarball) installs.
+and Linux (AppImage, deb, rpm and tarball) installs.
 
 ## How the app is built
 
@@ -120,6 +122,24 @@ and Linux (AppImage and tarball) installs.
 | `libs/egui`, `libs/winit` | the suite's vendored forks of egui and winit |
 | `libs/craft-libs` | mirrors of the shared crates (i18n, update, icons, palette, desktop theme, MCP); the source is `local-libs` |
 | `libs/rustls-rustcrypto` | the pure-Rust TLS provider fork used by the updater |
+
+## How it is made
+
+Local Image follows the same rules as every Local app: local files and no account, Rust only (including the UI and
+the cryptography), one self-contained repository per app, governed dependencies, releases built from a tag, and
+MCP so agents can use the app. It has no AI features: a viewer does not need them. The reasons for each decision:
+[How we make the Local apps](https://github.com/Styx-Studios/.github/blob/main/profile/README.md#how-we-make-the-local-apps).
+
+## Build from source
+
+```sh
+git clone https://github.com/Anon5T4R/Local-Image
+cd Local-Image
+cargo run --release    # the app
+cargo xtask ci         # all local checks
+```
+
+Rust 1.95 or newer.
 
 ## Keyboard shortcuts
 
@@ -131,33 +151,31 @@ and Linux (AppImage and tarball) installs.
 | `0`, double-click | fit the image to the window |
 | `C` | center the image, keeping the zoom |
 | `F` | full screen |
-| `Esc` | close the EXIF panel; otherwise leave full screen |
+| `Esc` | close the EXIF panel (interface visible); otherwise leave full screen |
 | `R` | resize the window to the image |
 | `[` / `]` | rotate 90° counterclockwise / clockwise |
 | `I` | EXIF panel |
 | `Ctrl+K` | command palette |
 | Click on the image | hide / show the interface |
 
-## Build from source
+## The Local apps
 
-```sh
-git clone https://github.com/Anon5T4R/Local-Image
-cd Local-Image
-cargo run --release    # the app
-cargo xtask ci         # all local checks
-```
+[Local Word](https://github.com/Anon5T4R/local-office) ·
+[Local Sheets](https://github.com/Anon5T4R/local-sheets) ·
+[Local Slides](https://github.com/Anon5T4R/local-slides) ·
+[Local PDF](https://github.com/Anon5T4R/local-pdf) ·
+[Local Keys](https://github.com/Anon5T4R/Local-Keys) ·
+[Local Image](https://github.com/Anon5T4R/Local-Image) ·
+[Local Photo](https://github.com/Anon5T4R/Local-Photo) ·
+[Local Paint](https://github.com/Anon5T4R/Local-Paint) ·
+[Local Vector](https://github.com/Anon5T4R/Local-Vector) ·
+[Local Player](https://github.com/Anon5T4R/Local-Player) ·
+[Local Notebook](https://github.com/Anon5T4R/Local-Obsidian) ·
+[Local Mindmap](https://github.com/Anon5T4R/Local-Mind) ·
+[Local Utils](https://github.com/Anon5T4R/Local-Utils)
 
-A recent stable Rust toolchain (the app uses edition 2024).
-
-## How it is made
-
-Local Image follows the same rules as every Local app: local files and no account, Rust only (including the UI and
-the cryptography), one self-contained repository per app, governed dependencies, releases built from a tag, and
-MCP so agents can use the app. It has no AI features: a viewer does not need them. The reasons for each decision:
-[How we make the Local apps](https://github.com/Styx-Studios/.github/blob/main/profile/README.md#how-we-make-the-local-apps).
-
-## License
+## License and credits
 
 MIT or Apache-2.0, at your option ([LICENSE-MIT](LICENSE-MIT), [LICENSE-APACHE](LICENSE-APACHE)). The vendored
 forks keep their own licenses in `libs/`, and the shared crates keep their notices in
-[libs/craft-libs/NOTICE](libs/craft-libs/NOTICE). Other Local apps: [the full list](https://github.com/Styx-Studios).
+[libs/craft-libs/NOTICE](libs/craft-libs/NOTICE).
