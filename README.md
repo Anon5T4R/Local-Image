@@ -60,22 +60,6 @@ copy of the original bytes.
 AVIF is not read: the `image` crate decodes it only through dav1d, a C library, and the app does not build a C
 image decoder. HEIC is not read either.
 
-## Download
-
-Windows 10/11 (x64): `.msi` per-machine installer or portable `.zip`. Linux (x86_64): `.AppImage`, `.deb`, `.rpm`,
-`.tar.gz` or Arch `.pkg.tar.zst`. All in
-[Releases](https://github.com/Anon5T4R/Local-Image/releases/latest). macOS is not published.
-
-Releases ship a `SHA256SUMS.txt`. The release workflow also signs the files with
-[minisign](https://jedisct1.github.io/minisign/) when CI has the signing key; it is the same key as every Local app.
-To check a file:
-
-```sh
-minisign -Vm <file> -P RWTqN+hTTCFbDCGCA1cEJRLp2FSluxIUiJfqdoAYwkwNNVH5MTYH8qSN
-```
-
-The public key is also in [packaging/minisign.pub](packaging/minisign.pub).
-
 ## Network and privacy
 
 - Your photos never leave the computer. There is no upload or telemetry.
@@ -113,6 +97,22 @@ the provider stays the only one in the path, with no fallback to `ring` or `aws-
 **What changed from the pilot:** the name, icon and identifiers; the shell shared by the suite (palette, themes,
 settings, update card); app-local languages and preferences; and the updater with its Windows (MSI and portable)
 and Linux (AppImage, deb, rpm and tarball) installs.
+
+## Download
+
+Windows 10/11 (x64): `.msi` per-machine installer or portable `.zip`. Linux (x86_64): `.AppImage`, `.deb`, `.rpm`,
+`.tar.gz` or Arch `.pkg.tar.zst`. All in
+[Releases](https://github.com/Anon5T4R/Local-Image/releases/latest). macOS is not published.
+
+Releases ship a `SHA256SUMS.txt`. The release workflow also signs the files with
+[minisign](https://jedisct1.github.io/minisign/) when CI has the signing key; it is the same key as every Local app.
+To check a file:
+
+```sh
+minisign -Vm <file> -P RWTqN+hTTCFbDCGCA1cEJRLp2FSluxIUiJfqdoAYwkwNNVH5MTYH8qSN
+```
+
+The public key is also in [packaging/minisign.pub](packaging/minisign.pub).
 
 ## How the app is built
 
